@@ -17,6 +17,9 @@ METRICS_ADDR ?= :18080
 HEALTH_PROBE_ADDR ?= :18081
 TENANT_WEBHOOK_PORT ?= :18082
 MYDRIVE_STORAGE_CLASS ?= rook-nfs
+# Disabled by default: it requires a registries.yaml config file (normally provided
+# by a ConfigMap in the Helm chart) that has no local-dev equivalent.
+ENABLE_IMAGELIST ?= false
 
 .PHONY: all
 all: gen
@@ -143,7 +146,7 @@ run-operator: generate ## Run the main operator locally
 				--enable-pmp=false\
 				--enable-keycloak=true\
 				--enable-webhooks=false\
-				--enable-imagelist=true\
+				--enable-imagelist=$(ENABLE_IMAGELIST)\
 				--mydrive-pvcs-storage-class-name=$(MYDRIVE_STORAGE_CLASS)
 
 # The double target below is used to set Keycloak defaults for the dev-local
