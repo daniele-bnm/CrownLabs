@@ -22,7 +22,7 @@ import (
 	apicommon "github.com/netgroup-polito/CrownLabs/operators/api/common"
 )
 
-// +kubebuilder:validation:Enum="VirtualMachine";"Container";"CloudVM";"Standalone";"LocalVM"
+// +kubebuilder:validation:Enum="VirtualMachine";"Container";"CloudVM";"Standalone";"LocalVM";"Cluster"
 
 // EnvironmentType is an enumeration of the different types of environments that
 // can be instantiated in CrownLabs.
@@ -39,6 +39,8 @@ const (
 	ClassStandalone EnvironmentType = "Standalone"
 	// ClassLocalVM -> the environment is constituted by a Virtual Machine started from a local Golden Image.
 	ClassLocalVM EnvironmentType = "LocalVM"
+	// ClassCluster -> the environment is constituted by a Cluster of Virtual Machines.
+	ClassCluster EnvironmentType = "Cluster"
 )
 
 // CleanupOptions defines the automatic actions to enforce termination policies.
@@ -114,7 +116,7 @@ type Environment struct {
 	Image string `json:"image"`
 
 	// The type of environment to be instantiated, among VirtualMachine,
-	// Container, CloudVM, LocalVM and Standalone.
+	// Container, CloudVM, LocalVM, Standalone and Cluster.
 	EnvironmentType EnvironmentType `json:"environmentType"`
 
 	// +kubebuilder:default=true
@@ -135,6 +137,7 @@ type Environment struct {
 
 	// The amount of computational resources associated with the environment.
 	Resources EnvironmentResources `json:"resources"`
+//***NOTA*** chiedere a federico se risorse totali del cluster o singolo nodo
 
 	// +kubebuilder:default=false
 	// Whether the environment needs the URL Rewrite or not.
@@ -152,7 +155,18 @@ type Environment struct {
 
 	// The list of information about Shared Volumes that has to be mounted to the instance.
 	SharedVolumeMounts []SharedVolumeMountInfo `json:"sharedVolumeMounts,omitempty"`
+
+	// The specification of the cluster to be created when instantiating the environment.
+	Cluster *ClusterSpec `json:"cluster,omitempty"`
 }
+
+type ClusterSpec struct {
+	// The number of nodes in the cluster.
+	// +kubebuilder:validation:Minimum:=1
+	// +kubebuilder:validation:Maximum:=10
+	WorkersCount int `json:"workersCount"`
+}
+
 
 // EnvironmentResources is the specification of the amount of resources
 // (i.e. CPU, RAM, ...) assigned to a certain environment.
