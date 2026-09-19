@@ -194,6 +194,11 @@ spec:
                         '-' or '.', must start and end with an alphanumeric character.
                       pattern: ^[a-z\d][a-z\d-]{2,10}[a-z\d]$
                       type: string
+                      x-kubernetes-validations:
+                      - message: cluster can only be set for Cluster environments
+                        rule: self.environmentType == 'Cluster' || !has(self.cluster)
+                      - message: cluster is required for Cluster environments
+                        rule: self.environmentType != 'Cluster' || has(self.cluster)
                     persistent:
                       default: false
                       description: |-

@@ -105,6 +105,9 @@ type TemplateStatus struct {
 
 // Environment defines the characteristics of an environment composing the Template.
 type Environment struct {
+	// +kubebuilder:validation:XValidation:rule="self.environmentType == 'Cluster' || !has(self.cluster)",message="cluster can only be set for Cluster environments"
+	// +kubebuilder:validation:XValidation:rule="self.environmentType != 'Cluster' || has(self.cluster)",message="cluster is required for Cluster environments"
+
 	// The name identifying the specific environment.
 	// The name must be unique within the Template and must follow the Kubernetes
 	// naming conventions, i.e. it must consist of lower case alphanumeric characters,
