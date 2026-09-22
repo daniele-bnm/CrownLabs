@@ -309,6 +309,7 @@ func (r *InstanceReconciler) enforceEnvironments(ctx context.Context) error {
 			if tmplEnv.GuiEnabled {
 				urlNeeded = true
 			}
+		default:
 		}
 	}
 	if urlNeeded {
@@ -350,6 +351,7 @@ func (r *InstanceReconciler) enforceSingleEnvironment(ctx context.Context, tmplE
 			r.EventsRecorder.Eventf(clctx.InstanceFrom(ctx), corev1.EventTypeWarning, EvEnvironmentErr, EvEnvironmentErrMsg, tmplEnv.Name)
 			return err
 		}
+	default:
 	}
 
 	r.setInitialReadyTimeIfNecessary(ctx)

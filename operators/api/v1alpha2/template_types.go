@@ -140,7 +140,7 @@ type Environment struct {
 
 	// The amount of computational resources associated with the environment.
 	Resources EnvironmentResources `json:"resources"`
-//***NOTA*** chiedere a federico se risorse totali del cluster o singolo nodo
+	// ***NOTA*** chiedere a federico se risorse totali del cluster o singolo nodo
 
 	// +kubebuilder:default=false
 	// Whether the environment needs the URL Rewrite or not.
@@ -163,13 +163,13 @@ type Environment struct {
 	Cluster *ClusterSpec `json:"cluster,omitempty"`
 }
 
+// ClusterSpec defines the specification of a cluster environment, including the number of worker nodes.
 type ClusterSpec struct {
 	// The number of nodes in the cluster.
 	// +kubebuilder:validation:Minimum:=1
 	// +kubebuilder:validation:Maximum:=10
 	WorkersCount int `json:"workersCount"`
 }
-
 
 // EnvironmentResources is the specification of the amount of resources
 // (i.e. CPU, RAM, ...) assigned to a certain environment.
