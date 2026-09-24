@@ -159,12 +159,16 @@ run-operator-local: KEYCLOAK_URL=https://keycloak.crownlabs.local
 run-operator-local: KEYCLOAK_REALM=crownlabs
 run-operator-local: KEYCLOAK_CLIENT_ID=operator-local
 run-operator-local: KEYCLOAK_TARGET_CLIENT=operator-local
-run-operator-local: install-local samples-res-local run-operator ## Prepare, then run the main operator locally against the dev-local Keycloak (requires KEYCLOAK_CLIENT_SECRET).
+run-operator-local: install-local-deploy samples-res-local run-operator ## Prepare, then run the main operator locally against the dev-local Keycloak (requires KEYCLOAK_CLIENT_SECRET).
 
 .PHONY: install-local
 install-local: manifests ## Install CrownLabs & support CRDs.
 	kubectl apply -f deploy/crds --wait
 	kubectl apply -f tests/crds --wait
+
+.PHONY: install-local-deploy
+install-local-deploy: manifests ## Install CrownLabs & support CRDs.
+	kubectl apply -f deploy/crds --wait
 
 .PHONY: samples-res-local
 samples-res-local:

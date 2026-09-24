@@ -206,6 +206,12 @@ spec:
                 type: string
               workers:
                 description: The specification of the worker nodes of the cluster.
+                properties:
+                  image:
+                    description: The container image to be used for the worker nodes.
+                    type: string
+                required:
+                - image
                 type: object
             required:
             - controlPlane

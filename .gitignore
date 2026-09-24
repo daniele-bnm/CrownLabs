@@ -11,6 +11,7 @@
 ./.vscode
 node_modules
 .vscode
+__debug_*
 
 # MacBook
 .DS_Store

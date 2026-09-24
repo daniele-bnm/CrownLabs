@@ -52,3 +52,15 @@ spec:
     namespace: workspace-standalone
   tenant.crownlabs.polito.it/TenantRef:
     name: john.doe
+---
+apiVersion: crownlabs.polito.it/v1alpha2
+kind: Instance
+metadata:
+  name: my-workload-cluster
+  namespace: tenant-john-doe
+spec:
+  template.crownlabs.polito.it/TemplateRef:
+    name: workload-cluster
+    namespace: workspace-tea
+  tenant.crownlabs.polito.it/TenantRef:
+    name: john.doe

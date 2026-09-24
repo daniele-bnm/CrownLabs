@@ -54,6 +54,8 @@ type ControlPlaneSpec struct {
 
 // WorkerSpec describes the shape of the worker nodes of the cluster.
 type WorkerSpec struct {
+	// The container image to be used for the worker nodes.
+	Image string `json:"image"`
 }
 
 // AddonSpec describes an additional Helm chart to be installed on the cluster.
@@ -106,6 +108,15 @@ type ClusterFlavor struct {
 	Spec              ClusterFlavorSpec `json:"spec,omitempty"`
 }
 
+// +kubebuilder:object:root=true
+
+// ClusterFlavorList contains a list of ClusterFlavor.
+type ClusterFlavorList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterFlavor `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&ClusterFlavor{})
+	SchemeBuilder.Register(&ClusterFlavor{}, &ClusterFlavorList{})
 }

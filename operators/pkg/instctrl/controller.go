@@ -351,6 +351,11 @@ func (r *InstanceReconciler) enforceSingleEnvironment(ctx context.Context, tmplE
 			r.EventsRecorder.Eventf(clctx.InstanceFrom(ctx), corev1.EventTypeWarning, EvEnvironmentErr, EvEnvironmentErrMsg, tmplEnv.Name)
 			return err
 		}
+	case clv1alpha2.ClassCluster:
+		if err := r.EnforceClusterEnvironment(ctx); err != nil {
+			r.EventsRecorder.Eventf(clctx.InstanceFrom(ctx), corev1.EventTypeWarning, EvEnvironmentErr, EvEnvironmentErrMsg, tmplEnv.Name)
+			return err
+		}
 	default:
 	}
 
