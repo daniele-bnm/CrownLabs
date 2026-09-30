@@ -17,8 +17,6 @@ package instctrl
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,8 +32,6 @@ import (
 	"github.com/netgroup-polito/CrownLabs/operators/pkg/forge"
 	"github.com/netgroup-polito/CrownLabs/operators/pkg/utils"
 )
-
-const clusterManifestsOutputPath = "/home/michele/CrownLabs/.vscode/test-wc.yaml"
 
 var clusterManifestsFileMu sync.Mutex
 
@@ -72,7 +68,7 @@ func (r *InstanceReconciler) EnforceClusterEnvironment(ctx context.Context) erro
 		return err
 	}
 
-	if _, err := r.enforceClusterAPIObject(ctx, forge.GVKKubevirtCluster, names.Cluster, instance.Namespace, labels, func(u *unstructured.Unstructured) {
+	if _, err := r.enforceClusterAPIObject(ctx, forge.GVKKubevirtCluster, names.Infrastructure, instance.Namespace, labels, func(u *unstructured.Unstructured) {
 		u.SetAnnotations(forge.KubevirtClusterAnnotations())
 	}); err != nil {
 		return err
@@ -134,7 +130,12 @@ func (r *InstanceReconciler) enforceClusterAPIObject(
 		obj.SetGroupVersionKind(gvk)
 		obj.SetLabels(labels)
 		setSpec(obj)
-		return ctrl.SetControllerReference(instance, obj, r.Scheme)
+
+		if gvk == forge.GVKCluster || gvk == forge.GVKHelmChartProxy {
+			return ctrl.SetControllerReference(instance, obj, r.Scheme)
+		}
+
+		return nil
 	}
 
 	// Apply the mutation once upfront, so the desired manifest can be logged
@@ -146,10 +147,6 @@ func (r *InstanceReconciler) enforceClusterAPIObject(
 	objYAML, err := yaml.Marshal(obj.Object)
 	if err != nil {
 		log.Error(err, "failed to serialize desired object", "kind", gvk.Kind, "object", klog.KRef(namespace, name))
-	} else {
-		if err := appendYAMLDocument(clusterManifestsOutputPath, objYAML); err != nil {
-			log.Error(err, "failed to persist desired object manifest", "kind", gvk.Kind, "object", klog.KRef(namespace, name), "path", clusterManifestsOutputPath)
-		}
 	}
 
 	res, err := ctrl.CreateOrUpdate(ctx, r.Client, obj, mutate)
@@ -157,38 +154,8 @@ func (r *InstanceReconciler) enforceClusterAPIObject(
 		log.Error(err, "failed to enforce object", "kind", gvk.Kind, "object", klog.KRef(namespace, name))
 		return nil, err
 	}
-	log.V(utils.FromResult(res)).Info("object enforced", "kind", gvk.Kind, "object", klog.KRef(namespace, name), "result", res)
+	log.V(utils.FromResult(res)).Info("object enforced", "kind", gvk.Kind, "object", klog.KRef(namespace, name), "result", objYAML)
 	return obj, nil
-}
-
-func appendYAMLDocument(path string, content []byte) error {
-	clusterManifestsFileMu.Lock()
-	defer clusterManifestsFileMu.Unlock()
-
-	info, err := os.Stat(path)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err == nil && info.Size() > 0 {
-		if _, werr := f.WriteString("\n---\n"); werr != nil {
-			return werr
-		}
-	}
-
-	doc := string(content)
-	if !strings.HasSuffix(doc, "\n") {
-		doc += "\n"
-	}
-
-	_, err = f.WriteString(doc)
-	return err
 }
 
 // RetrievePhaseFromCluster converts the status of a Cluster API Cluster resource to the corresponding

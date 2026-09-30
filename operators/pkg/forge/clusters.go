@@ -56,7 +56,7 @@ var (
 	// GVKKubevirtMachineTemplate is the GVK of the KubeVirt infrastructure provider machine template resource.
 	GVKKubevirtMachineTemplate = schema.GroupVersionKind{Group: "infrastructure.cluster.x-k8s.io", Version: "v1alpha1", Kind: "KubevirtMachineTemplate"}
 	// GVKKubeadmConfigTemplate is the GVK of the kubeadm bootstrap provider config template resource.
-	GVKKubeadmConfigTemplate = schema.GroupVersionKind{Group: "bootstrap.cluster.x-k8s.io", Version: "v1beta1", Kind: "KubeadmConfigTemplate"}
+	GVKKubeadmConfigTemplate = schema.GroupVersionKind{Group: "bootstrap.cluster.x-k8s.io", Version: "v1beta2", Kind: "KubeadmConfigTemplate"}
 	// GVKHelmChartProxy is the GVK of the Cluster API Add-on Provider for Helm chart proxy resource.
 	GVKHelmChartProxy = schema.GroupVersionKind{Group: "addons.cluster.x-k8s.io", Version: "v1alpha1", Kind: "HelmChartProxy"}
 )
@@ -67,6 +67,10 @@ type ClusterResourceNames struct {
 	Cluster string
 	// ControlPlane is the name of the KamajiControlPlane resource.
 	ControlPlane string
+
+	// Infrastructure is the name of the KubevirtCluster resource.
+	Infrastructure string
+
 	// MachineDeployment is the name shared by the MachineDeployment, KubevirtMachineTemplate and KubeadmConfigTemplate resources.
 	MachineDeployment string
 }
@@ -77,6 +81,7 @@ func ClusterNamesFromInstance(instance metav1.Object, environment *clv1alpha2.En
 	return ClusterResourceNames{
 		Cluster:           base,
 		ControlPlane:      base + StringSeparator + "control-plane",
+		Infrastructure:    base + StringSeparator + "infrastructure",
 		MachineDeployment: base + StringSeparator + "md-0",
 	}
 }
@@ -110,7 +115,7 @@ func ClusterSpec(names ClusterResourceNames) map[string]interface{} {
 		"infrastructureRef": map[string]interface{}{
 			"apiGroup": GVKKubevirtCluster.Group,
 			"kind":     GVKKubevirtCluster.Kind,
-			"name":     names.Cluster,
+			"name":     names.Infrastructure,
 		},
 		"clusterNetwork": map[string]interface{}{
 			"services": map[string]interface{}{
@@ -157,9 +162,19 @@ func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor) map[string]interfa
 		"scheduler":         componentResourcesSpec(&controlPlane.SchedulerResources),
 		"controllerManager": componentResourcesSpec(&controlPlane.ControllerManagerResources),
 		"addons": map[string]interface{}{
-			"coreDNS":      map[string]interface{}{},
-			"kubeProxy":    map[string]interface{}{},
-			"konnectivity": map[string]interface{}{},
+			"coreDNS":   map[string]interface{}{},
+			"kubeProxy": map[string]interface{}{},
+			"konnectivity": map[string]interface{}{
+				"server": map[string]interface{}{
+					"port": 8132,
+					"resources": map[string]interface{}{
+						"limits": map[string]interface{}{
+							"cpu":    controlPlane.KonnectivityResources.CPU.String(),
+							"memory": controlPlane.KonnectivityResources.Memory.String(),
+						},
+					},
+				},
+			},
 		},
 	}
 }

@@ -56,11 +56,11 @@ spec:
 apiVersion: crownlabs.polito.it/v1alpha2
 kind: Instance
 metadata:
-  name: my-workload-cluster
+  name: small-cl
   namespace: tenant-john-doe
 spec:
   template.crownlabs.polito.it/TemplateRef:
     name: workload-cluster
-    namespace: workspace-tea
+    namespace: workspace-olympia
   tenant.crownlabs.polito.it/TenantRef:
     name: john.doe

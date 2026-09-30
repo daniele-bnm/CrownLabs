@@ -2,7 +2,7 @@ apiVersion: crownlabs.polito.it/v1alpha2
 kind: ClusterFlavor
 metadata:
   name: k8s-1-26-basic
-  namespace: workspace-tea
+  namespace: workspace-olympia
 spec:
   version: v1.26.0
   controlPlane:
@@ -17,6 +17,9 @@ spec:
       cpu: "100m"
       memory: "128Mi"
     controllerManagerResources:
+      cpu: "100m"
+      memory: "128Mi"
+    konnectivityResources:
       cpu: "100m"
       memory: "128Mi"
   workers:

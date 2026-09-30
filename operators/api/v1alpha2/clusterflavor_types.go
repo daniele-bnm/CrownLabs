@@ -15,6 +15,8 @@
 package v1alpha2
 
 import (
+	"encoding/json"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -50,6 +52,40 @@ type ControlPlaneSpec struct {
 
 	// The CPU and memory limits assigned to the kube-controller-manager.
 	ControllerManagerResources ComponentResources `json:"controllerManagerResources,omitempty"`
+
+	KonnectivityResources ComponentResources `json:"konnectivityResources,omitempty"`
+}
+
+// UnmarshalJSON implements custom unmarshaling to prevent method promotion
+// from the embedded ResourceSpec.
+func (c *ControlPlaneSpec) UnmarshalJSON(data []byte) error {
+	// Decode the fields belonging to the embedded ResourceSpec.
+	if err := json.Unmarshal(data, &c.ResourceSpec); err != nil {
+		return err
+	}
+
+	// Decode the fields specific to ControlPlaneSpec.
+	var aux struct {
+		Replicas                   int32              `json:"replicas"`
+		DataStoreName              string             `json:"dataStoreName"`
+		APIServerResources         ComponentResources `json:"apiServerResources,omitempty"`
+		SchedulerResources         ComponentResources `json:"schedulerResources,omitempty"`
+		ControllerManagerResources ComponentResources `json:"controllerManagerResources,omitempty"`
+		KonnectivityResources      ComponentResources `json:"konnectivityResources,omitempty"`
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	c.Replicas = aux.Replicas
+	c.DataStoreName = aux.DataStoreName
+	c.APIServerResources = aux.APIServerResources
+	c.SchedulerResources = aux.SchedulerResources
+	c.ControllerManagerResources = aux.ControllerManagerResources
+	c.KonnectivityResources = aux.KonnectivityResources
+
+	return nil
 }
 
 // WorkerSpec describes the shape of the worker nodes of the cluster.
