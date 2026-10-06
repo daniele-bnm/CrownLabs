@@ -9,6 +9,7 @@
 .history
 .idea
 ./.vscode
+.vscode
 node_modules
 
 # MacBook
