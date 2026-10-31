@@ -54,6 +54,7 @@ frontend-app:
     imagelist:
       standalone: crownlabs-standalone
       containerdisks: crownlabs-standalone
+      clusterFlavors: local-clusterflavors
     publicRegistryNameDestination: crownlabs-public-snapshots
 
     defaultTimeouts:

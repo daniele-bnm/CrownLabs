@@ -6,7 +6,7 @@ metadata:
 apiVersion: crownlabs.polito.it/v1alpha2
 kind: ClusterFlavor
 metadata:
-  name: k8s-1-30-basic
+  name: basic2
   namespace: crownlabs-clusterflavors
 spec:
   version: v1.30.1
