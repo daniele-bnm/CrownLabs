@@ -70,6 +70,27 @@ export interface ITemplatesTableRowProps {
   >;
   expandRow: (value: string, create: boolean) => void;
 }
+const ClusterInfo: FC<{ env: Template['environmentList'][number] }> = ({
+  env,
+}) => {
+  const workers = env.cluster?.workersCount ?? 1;
+  const ram = convertToGiB(env.resources.memory);
+  return (
+    <>
+      <div>Workers: {workers}</div>
+      <div>Flavor: {env.image}</div>
+      <div>
+        CPU: {env.resources.cpu * workers} vCPU(s) ({env.resources.cpu} per
+        worker)
+      </div>
+      <div>
+        RAM: {ram ? ram * workers : 'unavailable'} GiB ({ram || 'unavailable'}{' '}
+        per worker)
+      </div>
+    </>
+  );
+};
+
 const TemplatesTableRow: FC<ITemplatesTableRowProps> = ({
   template,
   role,
@@ -475,21 +496,20 @@ const TemplatesTableRow: FC<ITemplatesTableRowProps> = ({
                           className="mb-2 p-2 border-l-2 border-blue-300"
                         >
                           <div className="font-medium">Env: {env.name}</div>
-                          {env.environmentType === EnvironmentType.Cluster && (
-                            <div>
-                              Flavor: {env.image}; workers:{' '}
-                              {env.cluster?.workersCount}. CPU/RAM below are per
-                              worker.
-                            </div>
+                          {env.environmentType === EnvironmentType.Cluster ? (
+                            <ClusterInfo env={env} />
+                          ) : (
+                            <>
+                              <div>GUI: {env.guiEnabled ? 'Yes' : 'No'}</div>
+                              <div>CPU: {env.resources.cpu} core(s)</div>
+                              <div>
+                                RAM:{' '}
+                                {convertToGiB(env.resources.memory) ||
+                                  'unavailable'}{' '}
+                                GiB
+                              </div>
+                            </>
                           )}
-                          <div>GUI: {env.guiEnabled ? 'Yes' : 'No'}</div>
-                          <div>CPU: {env.resources.cpu} core(s)</div>
-                          <div>
-                            RAM:{' '}
-                            {convertToGiB(env.resources.memory) ||
-                              'unavailable'}{' '}
-                            GiB
-                          </div>
                           {env.persistent && (
                             <div>
                               DISK:{' '}
@@ -567,22 +587,22 @@ const TemplatesTableRow: FC<ITemplatesTableRowProps> = ({
                   </div>
                 ) : (
                   <>
-                    <div>
-                      CPU: {template.resources.cpu || 'unavailable'}vCPU(s)
-                    </div>
                     {template.environmentList[0]?.environmentType ===
-                      EnvironmentType.Cluster && (
-                      <div>
-                        Cluster flavor: {template.environmentList[0].image};
-                        workers:{' '}
-                        {template.environmentList[0].cluster?.workersCount}
-                      </div>
+                    EnvironmentType.Cluster ? (
+                      <ClusterInfo env={template.environmentList[0]} />
+                    ) : (
+                      <>
+                        <div>
+                          CPU: {template.resources.cpu || 'unavailable'}vCPU(s)
+                        </div>
+                        <div>
+                          RAM:{' '}
+                          {convertToGiB(template.resources.memory) ||
+                            'unavailable'}
+                          GiB
+                        </div>
+                      </>
                     )}
-                    <div>
-                      RAM:{' '}
-                      {convertToGiB(template.resources.memory) || 'unavailable'}
-                      GiB
-                    </div>
                     <div>
                       {template.persistent
                         ? ` DISK: ${

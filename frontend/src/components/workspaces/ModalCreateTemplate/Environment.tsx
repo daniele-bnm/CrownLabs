@@ -39,7 +39,7 @@ const environmentTypeOptions = [
   { value: EnvironmentType.VirtualMachine, label: 'Virtual Machine' },
   { value: EnvironmentType.CloudVm, label: 'Cloud VM' },
   { value: EnvironmentType.LocalVm, label: 'Local VM' },
-  { value: EnvironmentType.Cluster, label: 'Kubernetes Cluster' },
+  { value: EnvironmentType.Cluster, label: 'Cluster' },
   { value: EnvironmentType.Standalone, label: 'Container (Standalone)' },
   //{ value: EnvironmentType.Container, label: 'Container' },
 ];
@@ -682,55 +682,53 @@ export const Environment: FC<EnvironmentProps> = ({
       {/* VM Image Selection - Remove {...fullLayout} */}
       {isCluster ? (
         <>
-          <Form.Item
-            {...restField}
-            label="Cluster flavor"
-            name={[name, 'image']}
-            dependencies={[['environments', name, 'environmentType']]}
-            rules={[
-              { required: true, message: 'Select a cluster flavor' },
-              {
-                validator: async (_, value: string | undefined) => {
-                  if (value && !clusterFlavorNames?.includes(value)) {
-                    throw new Error(
-                      'The selected ClusterFlavor is unavailable. Select an available flavor.',
-                    );
-                  }
-                },
-              },
-            ]}
-            {...formItemLayout}
-            extra={
-              publicSnapshotImageListError
-                ? 'Unable to load the ClusterFlavor catalog.'
-                : loadingPublicSnapshotImageList
-                  ? 'Loading cluster flavors...'
-                  : clusterFlavorNames === undefined
-                    ? 'ClusterFlavor catalog is unavailable.'
-                    : clusterFlavorNames.length === 0
-                      ? 'No cluster flavors available.'
-                      : 'The flavor defines the Kubernetes version, control plane, worker disks, and addons.'
-            }
+          <ConfigProvider
+            renderEmpty={() => (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="No data"
+              />
+            )}
           >
-            <Select
-              showSearch
-              optionFilterProp="label"
-              placeholder="Select a cluster flavor"
-              options={(clusterFlavorNames ?? []).map(flavor => ({
-                label: flavor,
-                value: flavor,
-              }))}
-              loading={loadingPublicSnapshotImageList}
-              disabled={
-                loadingPublicSnapshotImageList ||
-                publicSnapshotImageListError ||
-                !clusterFlavorNames?.length
-              }
-              getPopupContainer={trigger =>
-                trigger.parentElement || document.body
-              }
-            />
-          </Form.Item>
+            <Form.Item
+              {...restField}
+              label="Cluster flavor"
+              name={[name, 'image']}
+              dependencies={[['environments', name, 'environmentType']]}
+              rules={[
+                { required: true, message: 'Select a cluster flavor' },
+                {
+                  validator: async (_, value: string | undefined) => {
+                    if (value && !clusterFlavorNames?.includes(value)) {
+                      throw new Error(
+                        'The selected ClusterFlavor is unavailable. Select an available flavor.',
+                      );
+                    }
+                  },
+                },
+              ]}
+              {...formItemLayout}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Select a cluster flavour"
+                options={(clusterFlavorNames ?? []).map(flavor => ({
+                  label: flavor,
+                  value: flavor,
+                }))}
+                loading={loadingPublicSnapshotImageList}
+                disabled={
+                  loadingPublicSnapshotImageList ||
+                  publicSnapshotImageListError ||
+                  clusterFlavorNames === undefined
+                }
+                getPopupContainer={trigger =>
+                  trigger.parentElement || document.body
+                }
+              />
+            </Form.Item>
+          </ConfigProvider>
           <Form.Item
             {...restField}
             label="Workers"
@@ -747,30 +745,6 @@ export const Environment: FC<EnvironmentProps> = ({
             {...formItemLayout}
           >
             <InputNumber min={1} max={10} step={1} />
-          </Form.Item>
-          <Form.Item shouldUpdate className="ml-6">
-            {() => (
-              <Typography.Text type="secondary">
-                Worker resources:{' '}
-                {(form.getFieldValue(['environments', name, 'cpu']) ?? 0) *
-                  (form.getFieldValue([
-                    'environments',
-                    name,
-                    'cluster',
-                    'workersCount',
-                  ]) ?? 0)}{' '}
-                vCPU,{' '}
-                {(form.getFieldValue(['environments', name, 'ram']) ?? 0) *
-                  (form.getFieldValue([
-                    'environments',
-                    name,
-                    'cluster',
-                    'workersCount',
-                  ]) ?? 0)}{' '}
-                GiB RAM total. Control-plane and disk resources are defined by
-                the flavor and are not included in this estimate.
-              </Typography.Text>
-            )}
           </Form.Item>
         </>
       ) : currentEnvironmentType === EnvironmentType.LocalVm ? (
@@ -1015,14 +989,25 @@ export const Environment: FC<EnvironmentProps> = ({
         </Flex>
       )}
 
+      {isCluster && (
+        <Typography.Text type="secondary" className="block ml-2 mb-2">
+          CPU and RAM are assigned per worker.
+        </Typography.Text>
+      )}
       <Space direction="horizontal" className="ml-2 mb-4">
         {/* CPU Input */}
         <Form.Item
           {...restField}
           label={
             <>
-              {isCluster ? 'CPU per worker' : 'CPU'}{' '}
-              <Tooltip title="Number of virtual CPUs allocated to the environment">
+              CPU{' '}
+              <Tooltip
+                title={
+                  isCluster
+                    ? 'Number of virtual CPUs allocated to each worker'
+                    : 'Number of virtual CPUs allocated to the environment'
+                }
+              >
                 <InfoCircleOutlined className="ml-1" />
               </Tooltip>
             </>
@@ -1070,8 +1055,14 @@ export const Environment: FC<EnvironmentProps> = ({
           }
           label={
             <>
-              {isCluster ? 'RAM per worker' : 'RAM'}{' '}
-              <Tooltip title="Amount of RAM allocated to the environment">
+              RAM{' '}
+              <Tooltip
+                title={
+                  isCluster
+                    ? 'Amount of RAM allocated to each worker'
+                    : 'Amount of RAM allocated to the environment'
+                }
+              >
                 <InfoCircleOutlined className="ml-1" />
               </Tooltip>
             </>
@@ -1200,6 +1191,26 @@ export const Environment: FC<EnvironmentProps> = ({
           </Form.Item>
         )}
       </Space>
+      {isCluster && (
+        <Form.Item shouldUpdate className="ml-2 mb-4">
+          {() => {
+            const workers =
+              form.getFieldValue([
+                'environments',
+                name,
+                'cluster',
+                'workersCount',
+              ]) ?? 0;
+            const cpu = form.getFieldValue(['environments', name, 'cpu']) ?? 0;
+            const ram = form.getFieldValue(['environments', name, 'ram']) ?? 0;
+            return (
+              <Typography.Text strong>
+                Total workers: {cpu * workers} vCPU, {ram * workers} GiB RAM
+              </Typography.Text>
+            );
+          }}
+        </Form.Item>
+      )}
 
       {/* Extended Resources Row Layout */}
       {!isCluster && (

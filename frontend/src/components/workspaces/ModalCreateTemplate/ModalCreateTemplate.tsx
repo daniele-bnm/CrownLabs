@@ -1148,14 +1148,6 @@ const ModalCreateTemplate: FC<IModalCreateTemplateProps> = ({ ...props }) => {
         onSubmitCapture={handleFormSubmit}
         initialValues={getInitialValues(template)}
       >
-        {hasCluster && (
-          <Typography.Paragraph type="secondary">
-            Cluster environments use administrator-managed flavors. SSH, GUI,
-            stop/restart, inactivity cleanup, port exposure, and node selection
-            are not supported. Deletion and maximum-lifetime cleanup remain
-            available.
-          </Typography.Paragraph>
-        )}
         <Form.Item
           {...fullLayout}
           name="name"
