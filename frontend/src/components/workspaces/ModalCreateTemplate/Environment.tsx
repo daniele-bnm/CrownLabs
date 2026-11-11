@@ -708,6 +708,9 @@ export const Environment: FC<EnvironmentProps> = ({
                 },
               ]}
               {...formItemLayout}
+              getValueProps={(value?: string) => ({
+                value: value || undefined,
+              })}
             >
               <Select
                 showSearch
@@ -1205,7 +1208,7 @@ export const Environment: FC<EnvironmentProps> = ({
             const ram = form.getFieldValue(['environments', name, 'ram']) ?? 0;
             return (
               <Typography.Text strong>
-                Total workers: {cpu * workers} vCPU, {ram * workers} GiB RAM
+                Total resources: {cpu * workers} vCPU, {ram * workers} GiB RAM
               </Typography.Text>
             );
           }}
