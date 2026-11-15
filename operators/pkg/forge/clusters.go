@@ -269,13 +269,6 @@ func workerDiskSpec(disk *clv1alpha2.WorkerDiskSpec) (workerDisk, error) {
 		return workerDisk{volumeSource: virtv1.VolumeSource{
 			ContainerDisk: &virtv1.ContainerDiskSource{Image: disk.Image},
 		}}, nil
-	case clv1alpha2.WorkerDiskDataVolume:
-		if disk.Name == "" {
-			return workerDisk{}, fmt.Errorf("workers.disk.name is required for type %q", disk.Type)
-		}
-		return workerDisk{volumeSource: virtv1.VolumeSource{
-			DataVolume: &virtv1.DataVolumeSource{Name: disk.Name},
-		}}, nil
 	case clv1alpha2.WorkerDiskCloudImage:
 		if disk.URL == "" || disk.StorageClassName == "" || disk.StorageSize.Sign() <= 0 {
 			return workerDisk{}, fmt.Errorf("workers.disk.url, workers.disk.storageClassName and workers.disk.storageSize are required for type %q", disk.Type)

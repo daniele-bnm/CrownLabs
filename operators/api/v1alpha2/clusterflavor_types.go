@@ -100,8 +100,6 @@ type WorkerDiskType string
 const (
 	// WorkerDiskContainerDisk uses an image stored in an OCI container.
 	WorkerDiskContainerDisk WorkerDiskType = "containerDisk"
-	// WorkerDiskDataVolume uses an existing CDI DataVolume.
-	WorkerDiskDataVolume WorkerDiskType = "dataVolume"
 	// WorkerDiskCloudImage imports an HTTP cloud image into a CDI DataVolume.
 	WorkerDiskCloudImage WorkerDiskType = "cloudImage"
 )
@@ -109,14 +107,11 @@ const (
 // WorkerDiskSpec describes the root disk source for worker nodes.
 type WorkerDiskSpec struct {
 	// Type selects the disk source.
-	// +kubebuilder:validation:Enum=containerDisk;dataVolume;cloudImage
+	// +kubebuilder:validation:Enum=containerDisk;cloudImage
 	Type WorkerDiskType `json:"type"`
 
 	// Image is the OCI image used by containerDisk.
 	Image string `json:"image,omitempty"`
-
-	// Name is the existing DataVolume name used by dataVolume.
-	Name string `json:"name,omitempty"`
 
 	// URL is the HTTP URL imported by cloudImage.
 	URL string `json:"url,omitempty"`

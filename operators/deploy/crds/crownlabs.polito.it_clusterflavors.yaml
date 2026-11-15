@@ -235,10 +235,6 @@ spec:
                       image:
                         description: Image is the OCI image used by containerDisk.
                         type: string
-                      name:
-                        description: Name is the existing DataVolume name used by
-                          dataVolume.
-                        type: string
                       storageClassName:
                         description: StorageClassName is the storage class used for
                           a cloudImage import.
@@ -255,7 +251,6 @@ spec:
                         description: Type selects the disk source.
                         enum:
                         - containerDisk
-                        - dataVolume
                         - cloudImage
                         type: string
                       url:
