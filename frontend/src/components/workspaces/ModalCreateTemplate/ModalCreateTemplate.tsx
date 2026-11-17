@@ -964,7 +964,7 @@ const ModalCreateTemplate: FC<IModalCreateTemplateProps> = ({ ...props }) => {
               }
               onBlur={e => handleTimeoutInputSync(e, 'deleteAfterCreation')}
               min={0}
-              defaultValue={timeouts.deleteAfterCreation.value}
+              value={timeouts.deleteAfterCreation.value}
             />
 
             <Select
@@ -977,9 +977,7 @@ const ModalCreateTemplate: FC<IModalCreateTemplateProps> = ({ ...props }) => {
               getPopupContainer={trigger =>
                 trigger.parentElement || document.body
               }
-              defaultValue={
-                parseTimeoutString(template?.cleanup?.deleteAfterCreation).unit
-              }
+              value={timeouts.deleteAfterCreation.unit}
             >
               {TimeUnitOptions.map(option => (
                 <Select.Option key={option.value} value={option.value}>
