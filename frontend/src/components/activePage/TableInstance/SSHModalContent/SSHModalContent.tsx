@@ -5,6 +5,7 @@ import { CodeOutlined } from '@ant-design/icons';
 import { Phase2 } from '../../../../generated-types';
 import { VITE_APP_CROWNLABS_BASTION_HOST } from '../../../../env';
 import type { InstanceEnvironment } from '../../../../utils';
+import { supportsEnvironmentSSH } from '../../../../utils/cluster';
 
 const { Text } = Typography;
 
@@ -26,9 +27,10 @@ const SSHModalContent: FC<ISSHModalContentProps> = ({ ...props }) => {
     namespace,
     name /* prettyName, onClose */,
   } = props;
+  const sshEnvironments = environments?.filter(supportsEnvironmentSSH);
 
   const getFirstEnvironmentName = () => {
-    return environments?.[0]?.name || 'env';
+    return sshEnvironments?.[0]?.name || 'env';
   };
 
   const buildSSHLink = (envName: string) => {
@@ -40,6 +42,14 @@ const SSHModalContent: FC<ISSHModalContentProps> = ({ ...props }) => {
 
   const getEnvironmentStatus = (env: InstanceEnvironment) => {
     const isReady = env.phase === Phase2.Ready;
+    if (environments?.length && !sshEnvironments?.length) {
+      return (
+        <Text type="secondary">
+          These environments do not support SSH access.
+        </Text>
+      );
+    }
+
     return (
       <Tag color={isReady ? 'green' : 'red'}>{env.phase || 'Unknown'}</Tag>
     );
@@ -80,7 +90,7 @@ const SSHModalContent: FC<ISSHModalContentProps> = ({ ...props }) => {
           {environments && environments.length > 1 ? (
             <>
               <List
-                dataSource={environments}
+                dataSource={sshEnvironments}
                 renderItem={env => (
                   <List.Item className="flex flex-col">
                     <div className="flex justify-between items-center mb-2 gap-2">

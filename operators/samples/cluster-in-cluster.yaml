@@ -46,7 +46,7 @@ spec:
   email: jonh.doe@email.com
   workspaces:
     - name: olympia
-      role: user
+      role: manager
   publicKeys:
     - type1 key1 comment1
     - type2 key2 comment3

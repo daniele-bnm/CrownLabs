@@ -2,11 +2,51 @@ import {
   VITE_APP_CROWNLABS_IMAGELIST_CONTAINERDISKS,
   VITE_APP_CROWNLABS_IMAGELIST_STANDALONE,
   VITE_APP_CROWNLABS_IMAGELIST_PUBLIC_SNAPSHOTS,
+  VITE_APP_CROWNLABS_IMAGELIST_CLUSTER_FLAVORS,
 } from '../../../env';
 import { EnvironmentType, type ImagesQuery } from '../../../generated-types';
 import type { Template } from './ModalCreateTemplate';
 import type { TemplateFormEnv, Image, ImageList, Resources } from './types';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { getEnvironmentWorkerCount } from '../../../utils/cluster';
+
+export const getClusterFlavorNames = (
+  data: ImagesQuery,
+): string[] | undefined => {
+  const catalog = data.imageList?.images?.find(
+    list =>
+      list?.metadata?.name === VITE_APP_CROWNLABS_IMAGELIST_CLUSTER_FLAVORS,
+  );
+  if (!catalog?.spec) return;
+
+  return [
+    ...new Set(
+      catalog.spec.images.flatMap(image => (image?.name ? [image.name] : [])),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+};
+
+export const normalizeClusterEnvironment = (
+  env: TemplateFormEnv,
+): TemplateFormEnv => {
+  const { cluster, ...fields } = env;
+  if (env.environmentType !== EnvironmentType.Cluster) return fields;
+
+  return {
+    ...fields,
+    cluster: { workersCount: getEnvironmentWorkerCount({ ...env, cluster }) },
+    gui: false,
+    persistent: false,
+    rewriteUrl: false,
+    disk: 0,
+    otherResources: {},
+    sharedVolumeMounts: [],
+    mountMyDriveVolume: false,
+    disableControls: false,
+    containerStartupOptions: undefined,
+    storageClassName: undefined,
+  };
+};
 
 export const internalRegistry = 'harbor.ng.crownlabs.polito.it';
 export const imageListContainderDisksDefault =
@@ -191,61 +231,32 @@ export const getPublicSnapshotImageList = (
   };
 };
 
-export const useImageLists = (dataImages: ImagesQuery) => {
-  const [availableImagesVM, setAvailableImagesVM] = useState<Image[]>([]);
-  const [availableImagesContainer, setAvailableImagesContainer] = useState<
-    Image[]
-  >([]);
-  const [projectBaseNameVM, setProjectBaseNameVM] = useState<string>('');
-  const [projectBaseNameContainer, setProjectBaseNameContainer] =
-    useState<string>('');
-
-  useEffect(() => {
-    if (!dataImages) {
-      setAvailableImagesVM([]);
-      setAvailableImagesContainer([]);
-      return;
-    }
-
-    const imageLists = getImageLists(dataImages);
+export const useImageLists = (dataImages: ImagesQuery | undefined) =>
+  useMemo(() => {
+    const imageLists = dataImages ? getImageLists(dataImages) : [];
     const internalImagesVM =
       imageLists.find(
         list => list.name === VITE_APP_CROWNLABS_IMAGELIST_CONTAINERDISKS,
       ) ||
       imageLists.find(list => list.name === imageListContainderDisksDefault);
-    setProjectBaseNameVM(
-      internalImagesVM?.projectBaseName || defaultProjectNameVM,
-    );
-
     const internalImagesContainer =
       imageLists.find(
         list => list.name === VITE_APP_CROWNLABS_IMAGELIST_STANDALONE,
       ) || imageLists.find(list => list.name === imageListStandaloneDefault);
 
-    setProjectBaseNameContainer(
-      internalImagesContainer?.projectBaseName || defaultProjectNameContainer,
-    );
-
-    if (!internalImagesVM) {
-      setAvailableImagesVM([]);
-      return;
-    }
-
-    if (!internalImagesContainer) {
-      setAvailableImagesContainer([]);
-      return;
-    }
-    setAvailableImagesContainer(getImagesFromList(internalImagesContainer));
-    setAvailableImagesVM(getImagesFromList(internalImagesVM));
+    return {
+      availableImagesVM: internalImagesVM
+        ? getImagesFromList(internalImagesVM)
+        : [],
+      availableImagesContainer: internalImagesContainer
+        ? getImagesFromList(internalImagesContainer)
+        : [],
+      projectBaseNameVM:
+        internalImagesVM?.projectBaseName || defaultProjectNameVM,
+      projectBaseNameContainer:
+        internalImagesContainer?.projectBaseName || defaultProjectNameContainer,
+    };
   }, [dataImages]);
-
-  return {
-    availableImagesVM,
-    availableImagesContainer,
-    projectBaseNameVM,
-    projectBaseNameContainer,
-  };
-};
 export const isInImageList = (
   image: string,
   envType: string,
