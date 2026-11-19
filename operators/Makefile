@@ -99,7 +99,11 @@ run-instance: generate ## Run the instance operator locally
 				--public-exposure-common-annotations="metallb.universe.tf/allow-shared-ip=pe"\
 				--public-exposure-loadbalancer-ips-key="metallb.universe.tf/loadBalancerIPs"\
 				--gateway-api-mode=true\
-				--gateway-api-refs-values="my-ns/my-gateway"
+				--gateway-api-refs-values="my-ns/my-gateway"\
+  				--cluster-access-base-domain=k8s.crownlabs.local \
+  				--cluster-access-port=9443 \
+  				--cluster-access-listener-name=cluster-api-access \
+  				--cluster-access-gateway=default/crownlabs
 
 .PHONY: run-instance-automation
 run-instance-automation: generate ## Run the instance automation controller locally
@@ -161,11 +165,11 @@ run-operator-local: install-local samples-res-local run-operator ## Prepare, the
 .PHONY: install-local
 install-local: manifests ## Install CrownLabs & support CRDs.
 	kubectl apply -f deploy/crds --wait
-	kubectl apply -f tests/crds --wait
+# 	kubectl apply -f tests/crds --wait
 
 .PHONY: samples-res-local
 samples-res-local:
-	kubectl apply -f ./samples/
+# 	kubectl apply -f ./samples/
 
 #@ Cleanup
 

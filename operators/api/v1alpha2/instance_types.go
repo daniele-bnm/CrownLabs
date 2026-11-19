@@ -140,6 +140,25 @@ type InstanceStatusEnv struct {
 
 	// Timestamps of the Instance automation phases (check, termination and submission).
 	Automation InstanceAutomationStatus `json:"automation,omitempty"`
+
+	// The status of the external access to the API server of the workload cluster.
+	// It is set only for Cluster environments, when the external access is enabled.
+	ClusterAccess *InstanceClusterAccessStatus `json:"clusterAccess,omitempty"`
+}
+
+// InstanceClusterAccessStatus reflects the status of the external access to the API server of a workload cluster.
+// It never contains credentials: the kubeconfig is stored in the referenced Secret only.
+type InstanceClusterAccessStatus struct {
+	// The external endpoint (https://<host>:<port>) of the workload cluster API server.
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// The name of the Secret, in the Instance namespace, containing the kubeconfig
+	// to access the workload cluster through the external endpoint (key "kubeconfig").
+	KubeconfigSecretName string `json:"kubeconfigSecretName,omitempty"`
+
+	// Whether the external access is ready, i.e., the cluster is ready, the kubeconfig
+	// is available and the route has been accepted by the Gateway with resolved references.
+	Ready bool `json:"ready"`
 }
 
 // InstanceStatus reflects the most recently observed status of the Instance.

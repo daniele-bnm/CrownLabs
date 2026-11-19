@@ -19,6 +19,7 @@ const { subscriptions } = require('./subscriptions');
 const { kinformer } = require('./informer');
 const { getBearerToken, logger } = require('./utils');
 const { schema: nodeLabelsSchema } = require('./nodeLabels');
+const { createSecretSchema } = require('./secrets');
 
 dotenv.config();
 
@@ -63,7 +64,11 @@ async function main() {
 
   global.kubeSchema = kubeSchema;
 
-  const schemas = [{ schema: kubeSchema }, { schema: nodeLabelsSchema }];
+  // Read-only access to a single Secret by name, always with the token of the requesting user:
+  // disabled behind `kubectl proxy`, which would replace it with its own credentials.
+  const secretSchema = createSecretSchema({ kubeApiUrl, enabled: inCluster || useLocalCluster });
+
+  const schemas = [{ schema: kubeSchema }, { schema: nodeLabelsSchema }, { schema: secretSchema }];
 
   try {
     const registryOas = await getOpenApiSpec(registryUrl, ['docs/openapi.json']);

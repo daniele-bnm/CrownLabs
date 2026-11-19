@@ -75,6 +75,103 @@ Cluster environments use the official Go API types for Cluster API core and
 kubeadm bootstrap v1.13.7, the KubeVirt infrastructure provider v0.11.2, the
 Kamaji control plane provider v0.19.0, and the Helm add-on provider v0.6.4.
 
+#### Workload cluster API server access
+
+Tenants can use `kubectl` from their own computer to reach the API server of
+their workload clusters. The control plane keeps running in the management
+cluster behind its `ClusterIP` Service, and the internal endpoint used by
+Cluster API (and Konnectivity on port 8132) is left untouched: the external
+access is an additional path through the existing Envoy Gateway.
+
+```
+kubectl ──TLS (SNI: <host>)──▶ Gateway listener "cluster-api-access"
+                               (TLS Passthrough, *.<baseDomain>:9443)
+                                 └─ TLSRoute <instance>-<env>-api-access ──▶ Service of the TenantControlPlane (ClusterIP)
+```
+
+TLS is **not** terminated by the Gateway, so the API server receives the
+original handshake, including client certificates. The feature is configured
+deployment-wide through the instance operator flags, and is active for every
+Cluster environment as soon as the base domain is set (there is no per-flavor
+switch):
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--cluster-access-base-domain` | `""` | Base domain of the per-environment hostnames. Empty disables the exposure. |
+| `--cluster-access-port` | `9443` | Port of the Gateway TLS listener (used in the endpoint). |
+| `--cluster-access-listener-name` | `cluster-api-access` | Listener name, used as `sectionName` of the TLSRoutes. |
+| `--cluster-access-gateway` | `""` | Gateway hosting the listener, as `namespace/name` (required when enabled). |
+
+With Helm, set `global.clusterAccess.{baseDomain,port,listenerName}` in the
+umbrella chart: the same values add the TLS passthrough listener (accepting
+`TLSRoute`s from all namespaces) to the main Gateway and configure the instance
+operator, whose Gateway reference defaults to
+`<release namespace>/<global.gateway.name>`
+(override with `configurations.clusterAccess.*` of the instance-operator chart).
+For the local Envoy Gateway see [`dev-local/envoy/README.md`](../dev-local/envoy/README.md#6-workload-cluster-api-access-tls-passthrough-on-9443).
+
+The administrator must configure a wildcard DNS record `*.<baseDomain>`
+pointing to the Gateway address: the operator never creates DNS records.
+
+For each Cluster environment, the operator:
+
+* computes a hostname `<instance>-<env>-<hash>.<baseDomain>`, a single DNS label
+  below the base domain (so it matches the wildcard), stable across
+  reconciliations and unique across tenants, instances and environments (the
+  hash covers namespace, instance and environment names; the readable prefix is
+  truncated to fit 63 characters);
+* adds the hostname to `spec.network.certSANs` of the `KamajiControlPlane`, so
+  that the API server certificate is valid for it. Enabling the feature on an
+  existing cluster makes Kamaji regenerate the API server certificate;
+* reads the API server Service and port from
+  `status.kubernetesResources.service` of the Kamaji `TenantControlPlane` (same
+  name and namespace of the `KamajiControlPlane`) and creates the `TLSRoute`
+  `<instance>-<env>-api-access` attached to the configured listener;
+* derives from the Cluster API Secret `<cluster>-kubeconfig` (key `value`, never
+  modified) a dedicated Secret `<cluster>-tenant-kubeconfig` (key `kubeconfig`)
+  containing only the current context, its CA and admin credentials, with the
+  server set to `https://<hostname>:<port>`. The Secret is kept aligned when the
+  source credentials change (Secrets are watched);
+* creates the `Role`/`RoleBinding` `<instance>-<env>-api-access` granting the
+  owner tenant (`User` named after the Tenant) only `get` on the dedicated
+  Secret, through `resourceNames` (no `list`/`watch` on Secrets).
+
+All these resources are controlled by the Instance, hence garbage collected on
+its deletion. Kamaji and Cluster API create their resources asynchronously:
+while the `TenantControlPlane` Service, the kubeconfig or the route acceptance
+are missing, the access is reported as not ready and the reconciliation is
+requeued (no `CreationLoopBackoff`). The status exposes no credentials:
+
+```yaml
+status:
+  environments:
+    - name: cluster
+      phase: Ready
+      clusterAccess:
+        endpoint: https://my-instance-cluster-3f9c2a1b7d4e.k8s.crownlabs.example.com:9443
+        kubeconfigSecretName: my-instance-cluster-tenant-kubeconfig
+        ready: true
+```
+
+`ready` is `true` only when the environment is `Ready`, the dedicated kubeconfig
+exists, and the `TLSRoute` reports both `Accepted` and `ResolvedRefs` for the
+configured listener (for its current generation). The dashboard downloads the
+kubeconfig through qlkube with the user token. A tenant can also run:
+
+```bash
+kubectl get secret -n <tenant-namespace> <kubeconfigSecretName> \
+  -o jsonpath='{.data.kubeconfig}' | base64 -d > cluster.kubeconfig
+kubectl --kubeconfig cluster.kubeconfig get nodes
+```
+
+Troubleshooting: `kubectl get tlsroute -n <ns> <instance>-<env>-api-access -o yaml`
+shows the Gateway conditions; `openssl s_client -connect <host>:9443 -servername <host>`
+must return the certificate of the workload API server (not the Gateway one).
+When the access is enabled, the instance operator refuses to start if the
+`TLSRoute` Gateway API **v1** CRD (Gateway API >= v1.5) is not installed. It
+also needs read access to `tenantcontrolplanes.kamaji.clastix.io` and write
+access to `tlsroutes`, `roles` and `rolebindings` (included in the chart).
+
 #### Gateway API & Exposition Flags
 
 The Instance Operator exposes VM and container instances through Gateway API `HTTPRoute` resources (or legacy `Ingress` objects):

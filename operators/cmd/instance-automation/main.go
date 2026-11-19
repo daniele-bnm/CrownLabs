@@ -125,7 +125,7 @@ func main() {
 		Scheme:                 rscheme,
 		Metrics:                server.Options{BindAddress: *metricsAddr},
 		LeaderElection:         *enableLeaderElection,
-		HealthProbeBindAddress: ":8081",
+		HealthProbeBindAddress: ":8083",
 		LivenessEndpointName:   "/healthz",
 		ReadinessEndpointName:  "/ready",
 	})

@@ -3,6 +3,7 @@ import {
   ExportOutlined,
   DownOutlined,
   CodeOutlined,
+  ClusterOutlined,
 } from '@ant-design/icons';
 import { Tooltip, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
@@ -18,20 +19,22 @@ import { type Instance, WorkspaceRole } from '../../../../utils';
 import { ModalAlert } from '../../../common/ModalAlert';
 import type { InstanceEnvironment } from '../../../../utils';
 import {
+  canConnectToEnvironment,
   hasClusterEnvironment,
-  supportsEnvironmentSSH,
+  isClusterAccessReady,
 } from '../../../../utils/cluster';
 export interface IRowInstanceActionsDefaultProps {
   extended: boolean;
   instance: Instance;
   viewMode: WorkspaceRole;
   setSshModal: React.Dispatch<SetStateAction<boolean>>;
+  onClusterConnect: (env: InstanceEnvironment) => void;
 }
 
 const RowInstanceActionsDefault: FC<IRowInstanceActionsDefaultProps> = ({
   ...props
 }) => {
-  const { extended, instance, viewMode, setSshModal } = props;
+  const { extended, instance, viewMode, setSshModal, onClusterConnect } = props;
   const {
     prettyName,
     url,
@@ -55,7 +58,9 @@ const RowInstanceActionsDefault: FC<IRowInstanceActionsDefaultProps> = ({
       environmentType === EnvironmentType.Cluster &&
       environments?.length === 1
     ) {
-      return 'Cluster connection credentials are not available through the dashboard yet.';
+      return isClusterAccessReady(environments[0])
+        ? 'Connect to the cluster API server'
+        : 'The access to the cluster API server is not ready yet';
     }
     if (!connectDisabled) {
       return gui ? 'Connect to the GUI' : `Connect through SSH`;
@@ -103,12 +108,7 @@ const RowInstanceActionsDefault: FC<IRowInstanceActionsDefaultProps> = ({
   };
 
   const connectDisabled = hasCluster
-    ? !environments?.some(
-        env =>
-          env.phase === Phase2.Ready &&
-          env.environmentType !== EnvironmentType.Cluster &&
-          (env.guiEnabled || supportsEnvironmentSSH(env)),
-      )
+    ? !environments?.some(canConnectToEnvironment)
     : status !== Phase2.Ready ||
       (environmentType === EnvironmentType.Container && !gui);
 
@@ -124,7 +124,10 @@ const RowInstanceActionsDefault: FC<IRowInstanceActionsDefaultProps> = ({
   };
 
   const handleEnvironmentConnect = (env: InstanceEnvironment) => {
-    if (env.environmentType === EnvironmentType.Cluster) return;
+    if (env.environmentType === EnvironmentType.Cluster) {
+      if (isClusterAccessReady(env)) onClusterConnect(env);
+      return;
+    }
     if (env.guiEnabled) {
       const baseUrl = url?.endsWith('/') ? url.slice(0, -1) : url;
       const envUrl = `${baseUrl}/${env.name}/`;
@@ -141,12 +144,19 @@ const RowInstanceActionsDefault: FC<IRowInstanceActionsDefaultProps> = ({
     return environments.map(env => {
       const isReady = env.phase === Phase2.Ready;
       const isGuiEnabled = env.guiEnabled;
+      const isCluster = env.environmentType === EnvironmentType.Cluster;
 
       return {
         key: env.name,
         label: env.name,
-        icon: isGuiEnabled ? <ExportOutlined /> : <CodeOutlined />,
-        disabled: !isReady || env.environmentType === EnvironmentType.Cluster,
+        icon: isCluster ? (
+          <ClusterOutlined />
+        ) : isGuiEnabled ? (
+          <ExportOutlined />
+        ) : (
+          <CodeOutlined />
+        ),
+        disabled: isCluster ? !isClusterAccessReady(env) : !isReady,
         onClick: () => handleEnvironmentConnect(env),
       };
     });

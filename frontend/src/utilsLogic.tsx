@@ -29,6 +29,7 @@ import {
 } from './generated-types';
 import { getInstancePatchJson } from './graphql-components/utils';
 import type {
+  ClusterAccess,
   Instance,
   InstanceEnvironment,
   PortListItem,
@@ -427,6 +428,15 @@ export const makeGuiInstance = (
         persistent: !isCluster && (templateEnv?.persistent ?? false),
         environmentType: templateEnv?.environmentType,
         cluster: isCluster ? { workersCount: workers } : undefined,
+        clusterAccess:
+          isCluster && envStatus?.clusterAccess
+            ? {
+                endpoint: envStatus.clusterAccess.endpoint ?? undefined,
+                kubeconfigSecretName:
+                  envStatus.clusterAccess.kubeconfigSecretName ?? undefined,
+                ready: envStatus.clusterAccess.ready === true,
+              }
+            : undefined,
         quota: {
           cpu: (templateEnv?.resources?.cpu || 0) * workers,
           memory: templateEnv?.resources?.memory
@@ -619,6 +629,18 @@ export const updateQueryOwnedInstancesQuery = (
   };
 };
 
+// The cluster access usually becomes ready after the environment phase, hence it must trigger an update too.
+type ClusterAccessLike = Nullable<{
+  [K in keyof ClusterAccess]?: Nullable<ClusterAccess[K]>;
+}>;
+const clusterAccessChanged = (
+  oldAccess?: ClusterAccessLike,
+  newAccess?: ClusterAccessLike,
+) =>
+  (oldAccess?.ready ?? false) !== (newAccess?.ready ?? false) ||
+  oldAccess?.endpoint !== newAccess?.endpoint ||
+  oldAccess?.kubeconfigSecretName !== newAccess?.kubeconfigSecretName;
+
 export const getSubObjTypeCustom = (
   oldObj: Nullable<Instance>,
   newObj: Instance,
@@ -655,7 +677,11 @@ export const getSubObjTypeCustom = (
     if (oldEnvironments && newEnvironments) {
       const environmentPhaseChanged = oldEnvironments.some((oldEnv, index) => {
         const newEnv = newEnvironments[index];
-        return newEnv && oldEnv?.phase !== newEnv?.phase;
+        return (
+          newEnv &&
+          (oldEnv?.phase !== newEnv?.phase ||
+            clusterAccessChanged(oldEnv?.clusterAccess, newEnv?.clusterAccess))
+        );
       });
 
       if (environmentPhaseChanged) {
@@ -705,7 +731,11 @@ const getSubObjTypeK8sEnhanced = (
 
     const environmentPhaseChanged = oldEnvironments.some((oldEnv, index) => {
       const newEnv = newEnvironments[index];
-      return newEnv && oldEnv?.phase !== newEnv?.phase;
+      return (
+        newEnv &&
+        (oldEnv?.phase !== newEnv?.phase ||
+          clusterAccessChanged(oldEnv?.clusterAccess, newEnv?.clusterAccess))
+      );
     });
 
     if (environmentPhaseChanged) {

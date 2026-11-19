@@ -153,8 +153,9 @@ func componentResourcesSpec(res *clv1alpha2.ComponentResources) corev1.ResourceR
 }
 
 // KamajiControlPlaneSpec returns the spec of the KamajiControlPlane resource, forged from the ClusterFlavor
-// referenced by the Cluster environment.
-func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor) *kamajicpv1alpha1.KamajiControlPlaneSpec {
+// referenced by the Cluster environment. The certSANs are added to the API server certificate, e.g., to
+// allow the access through the external hostname.
+func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor, certSANs ...string) *kamajicpv1alpha1.KamajiControlPlaneSpec {
 	controlPlane := flavor.Spec.ControlPlane
 	return &kamajicpv1alpha1.KamajiControlPlaneSpec{
 		Replicas: ptr.To(controlPlane.Replicas),
@@ -164,6 +165,7 @@ func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor) *kamajicpv1alpha1.
 			DataStoreSchema: ClusterKamajiDataStoreSchema,
 			Network: kamajicpv1alpha1.NetworkComponent{
 				ServiceType: "ClusterIP",
+				CertSANs:    certSANs,
 			},
 			ApiServer:         kamajicpv1alpha1.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.APIServerResources)},
 			Scheduler:         kamajicpv1alpha1.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.SchedulerResources)},

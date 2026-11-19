@@ -293,3 +293,252 @@ test('live subscription documents include the shared cluster environment fragmen
     }
   }
 });
+
+const clusterAccess = (ready = true) => ({
+  endpoint: 'https://inst-wl-cluster-0123456789ab.k8s.crownlabs.local:9443',
+  kubeconfigSecretName: 'cluster-instance-wl-cluster-tenant-kubeconfig',
+  ready,
+});
+
+const instanceWithAccess = (envs, access) => {
+  const raw = instance(envs);
+  raw.status.environments = raw.status.environments.map(env => ({
+    ...env,
+    clusterAccess: access[env.name],
+  }));
+  return raw;
+};
+
+test('cluster access status is mapped only for cluster environments', () => {
+  const vm = {
+    name: 'vm-env',
+    environmentType: api.EnvironmentType.VirtualMachine,
+    resources: { cpu: 1, memory: '1Gi', disk: '10Gi' },
+    guiEnabled: true,
+  };
+  const gui = mapping.makeGuiInstance(
+    instanceWithAccess([environment(), vm], {
+      'wl-cluster': clusterAccess(),
+      'vm-env': clusterAccess(),
+    }),
+  );
+  assert.deepEqual(gui.environments[0].clusterAccess, clusterAccess());
+  assert.equal(gui.environments[1].clusterAccess, undefined);
+  const missing = mapping.makeGuiInstance(instance([environment()]));
+  assert.equal(missing.environments[0].clusterAccess, undefined);
+});
+
+test('connect is enabled for clusters only when the access is ready, keeping VM behavior', () => {
+  const ready = api.Phase2.Ready;
+  const cl = (phase, access) => ({
+    environmentType: api.EnvironmentType.Cluster,
+    phase,
+    clusterAccess: access,
+  });
+  assert.equal(
+    cluster.canConnectToEnvironment(cl(ready, clusterAccess())),
+    true,
+  );
+  assert.equal(
+    cluster.canConnectToEnvironment(cl(ready, clusterAccess(false))),
+    false,
+  );
+  assert.equal(cluster.canConnectToEnvironment(cl(ready, undefined)), false);
+  assert.equal(
+    cluster.canConnectToEnvironment(cl(api.Phase2.Running, clusterAccess())),
+    false,
+  );
+  const vm = phase => ({
+    environmentType: api.EnvironmentType.VirtualMachine,
+    phase,
+  });
+  assert.equal(cluster.canConnectToEnvironment(vm(ready)), true);
+  assert.equal(cluster.canConnectToEnvironment(vm(api.Phase2.Off)), false);
+  assert.equal(
+    cluster.canConnectToEnvironment({
+      environmentType: api.EnvironmentType.Container,
+      phase: ready,
+      guiEnabled: false,
+    }),
+    false,
+  );
+});
+
+test('the kubeconfig is read on demand, without cache, and decoded', async () => {
+  const content = 'apiVersion: v1\nkind: Config\n# àccénts\n';
+  const value = Buffer.from(content, 'utf8').toString('base64');
+  const calls = [];
+  const client = {
+    query: async options => {
+      calls.push(options);
+      return { data: { secret: { data: [{ key: 'kubeconfig', value }] } } };
+    },
+  };
+  const result = await cluster.fetchClusterKubeconfig(
+    client,
+    'tenant-test',
+    'secret-name',
+  );
+  assert.equal(result, content);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].fetchPolicy, 'no-cache');
+  assert.equal(calls[0].query, api.ClusterKubeconfigDocument);
+  assert.deepEqual(calls[0].variables, {
+    namespace: 'tenant-test',
+    name: 'secret-name',
+  });
+});
+
+test('kubeconfig errors are reported to the user', async () => {
+  const failing = {
+    query: async () => {
+      throw new Error('secrets "x" is forbidden');
+    },
+  };
+  await assert.rejects(
+    cluster.fetchClusterKubeconfig(failing, 'ns', 'x'),
+    /forbidden/,
+  );
+  const withErrors = {
+    query: async () => ({ data: null, errors: [{ message: 'not found' }] }),
+  };
+  await assert.rejects(
+    cluster.fetchClusterKubeconfig(withErrors, 'ns', 'x'),
+    /not found/,
+  );
+  const empty = { query: async () => ({ data: { secret: { data: [] } } }) };
+  await assert.rejects(
+    cluster.fetchClusterKubeconfig(empty, 'ns', 'x'),
+    /not available/,
+  );
+});
+
+test('kubeconfig file name and kubectl example are consistent', () => {
+  const fileName = cluster.kubeconfigFileName('my.instance', 'wl-cluster');
+  assert.equal(fileName, 'my.instance-wl-cluster.kubeconfig');
+  assert.equal(
+    cluster.kubectlExampleCommand(fileName),
+    'kubectl --kubeconfig my.instance-wl-cluster.kubeconfig get nodes',
+  );
+  assert.equal(
+    cluster.kubeconfigFileName('a b/c', 'env'),
+    'a-b-c-env.kubeconfig',
+  );
+});
+
+test('subscription updates are applied when only the cluster access changes', () => {
+  const before = mapping.makeGuiInstance(
+    instanceWithAccess([environment()], {
+      'wl-cluster': clusterAccess(false),
+    }),
+  );
+  const after = mapping.makeGuiInstance(
+    instanceWithAccess([environment()], { 'wl-cluster': clusterAccess() }),
+  );
+  assert.equal(
+    mapping.getSubObjTypeCustom(before, after, api.UpdateType.Modified),
+    mapping.SubObjType.UpdatedInfo,
+  );
+  assert.equal(
+    mapping.getSubObjTypeCustom(after, after, api.UpdateType.Modified),
+    mapping.SubObjType.Drop,
+  );
+  const raw = ready =>
+    instanceWithAccess([environment()], {
+      'wl-cluster': clusterAccess(ready),
+    });
+  assert.equal(
+    mapping.getSubObjTypeK8s(raw(false), raw(true), api.UpdateType.Modified),
+    mapping.SubObjType.UpdatedInfo,
+  );
+});
+
+test('owned instance documents request the cluster access status', () => {
+  for (const document of [
+    api.OwnedInstancesDocument,
+    documents.updatedOwnedInstances,
+  ]) {
+    const source = document.loc.source.body;
+    assert.match(
+      source,
+      /clusterAccess\s*{\s*endpoint\s+kubeconfigSecretName\s+ready\s*}/,
+    );
+    assert.doesNotMatch(source, /readSecretByName/);
+  }
+});
+
+test('connect button and cluster modal render the access information', async () => {
+  // React is externalized by the SSR loader, hence it is shared with the components.
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { ApolloClient, ApolloProvider, InMemoryCache } =
+    await server.ssrLoadModule('@apollo/client');
+  const { default: Modal } = await server.ssrLoadModule(
+    '/src/components/activePage/TableInstance/ClusterAccessModalContent/ClusterAccessModalContent.tsx',
+  );
+  const { default: Default } = await server.ssrLoadModule(
+    '/src/components/activePage/TableInstance/RowInstanceActions/RowInstanceActionsDefault.tsx',
+  );
+  const utils = await server.ssrLoadModule('/src/utils.ts');
+  const client = new ApolloClient({
+    cache: new InMemoryCache(),
+    devtools: { enabled: false },
+  });
+  const render = element =>
+    renderToStaticMarkup(
+      React.createElement(ApolloProvider, { client }, element),
+    );
+
+  const gui = ready =>
+    mapping.makeGuiInstance(
+      instanceWithAccess([environment()], {
+        'wl-cluster': clusterAccess(ready),
+      }),
+    );
+  const modal = ready =>
+    render(
+      React.createElement(Modal, {
+        instanceName: 'cluster-instance',
+        namespace: 'tenant-test',
+        environment: gui(ready).environments[0],
+      }),
+    );
+  const readyHtml = modal(true);
+  assert.match(readyHtml, /wl-cluster/);
+  assert.match(
+    readyHtml,
+    /inst-wl-cluster-0123456789ab\.k8s\.crownlabs\.local:9443/,
+  );
+  assert.match(
+    readyHtml,
+    /kubectl --kubeconfig cluster-instance-wl-cluster\.kubeconfig get nodes/,
+  );
+  assert.doesNotMatch(
+    readyHtml,
+    /<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*Download kubeconfig/s,
+  );
+  assert.match(
+    modal(false),
+    /<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*Download kubeconfig/s,
+  );
+
+  const connect = ready =>
+    render(
+      React.createElement(Default, {
+        extended: true,
+        instance: gui(ready),
+        viewMode: utils.WorkspaceRole.user,
+        setSshModal: () => {},
+        onClusterConnect: () => {},
+      }),
+    );
+  const connectButtons = html => [
+    ...html.matchAll(/<button[^>]*>(?:(?!<\/button>).)*?Connect<\/span>/gs),
+  ];
+  const enabled = connectButtons(connect(true));
+  assert.ok(enabled.length > 0);
+  assert.ok(enabled.every(([b]) => !/disabled=""/.test(b)));
+  const disabled = connectButtons(connect(false));
+  assert.ok(disabled.length > 0);
+  assert.ok(disabled.every(([b]) => /disabled=""/.test(b)));
+});

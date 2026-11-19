@@ -34,3 +34,32 @@ npm run dev
 ## Schema
 
 The generated graphql schema is served at /schema
+
+## Reading a single Secret
+
+Besides the generated CrownLabs API, qlkube exposes a single read-only query to
+fetch one Secret by name (used by the dashboard to download the kubeconfig of a
+workload cluster):
+
+```graphql
+query {
+  readSecretByName(namespace: "tenant-john-doe", name: "my-instance-cluster-tenant-kubeconfig") {
+    name
+    data { key value } # values are base64-encoded, as returned by Kubernetes
+  }
+}
+```
+
+The request is always forwarded to the API server with the bearer token of the
+requesting user, so it is authorized exclusively by Kubernetes RBAC: there is no
+fallback to the qlkube ServiceAccount (which has no access to Secrets), and
+requests without a token are rejected. Listing, watching or modifying Secrets
+is not possible. When qlkube runs behind `kubectl proxy` (`npm run dev`), which
+would replace the user token with its own credentials, the query is disabled;
+use the in-cluster mode or `npm run dev-local-cluster`.
+
+## Tests
+
+```bash
+npm test
+```

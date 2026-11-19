@@ -5,6 +5,14 @@
 global:
   # Namespace for both ClusterFlavor resolution and the default ImageList source.
   clusterFlavorNamespace: crownlabs-clusterflavors
+  # External access to the API server of the workload clusters (Cluster environments).
+  # When baseDomain is set, a TLS passthrough listener ("*.<baseDomain>" on the given port) is added
+  # to the main Gateway, and the instance operator creates a TLSRoute for each Cluster environment.
+  # The wildcard DNS record "*.<baseDomain>" must be configured by the administrator.
+  clusterAccess:
+    baseDomain: "" # e.g., k8s.crownlabs.example.com; empty disables the exposure
+    port: 9443
+    listenerName: cluster-api-access
   version: "" # default set while packaging
   gateway:
     gatewayApiMode: true

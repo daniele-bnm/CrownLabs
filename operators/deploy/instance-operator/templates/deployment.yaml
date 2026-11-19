@@ -52,6 +52,10 @@ spec:
             - '--mirror-storage-class={{.Values.configurations.generic.mirrorStorageClass}}'
             - '--gateway-api-mode={{ .Values.configurations.generic.gatewayApiMode | default .Values.global.gateway.gatewayApiMode | default false }}'
             - '--gateway-api-refs-values={{ .Values.configurations.generic.gatewayApiRefsValues | default (printf "%s/%s" .Release.Namespace .Values.global.gateway.name) }}'
+            - '--cluster-access-base-domain={{ .Values.configurations.clusterAccess.baseDomain | default .Values.global.clusterAccess.baseDomain | default "" }}'
+            - '--cluster-access-port={{ .Values.configurations.clusterAccess.port | default .Values.global.clusterAccess.port | default 9443 }}'
+            - '--cluster-access-listener-name={{ .Values.configurations.clusterAccess.listenerName | default .Values.global.clusterAccess.listenerName | default "cluster-api-access" }}'
+            - '--cluster-access-gateway={{ .Values.configurations.clusterAccess.gatewayRef | default (printf "%s/%s" .Release.Namespace .Values.global.gateway.name) }}'
 
           ports:
             - name: op-metrics

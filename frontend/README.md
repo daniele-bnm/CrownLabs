@@ -149,13 +149,33 @@ and RAM for all workers. These are worker-only estimates: the flavor's
 control-plane and storage allocations are not exposed by the catalog, and
 Kubernetes remains authoritative for resource quota enforcement.
 
-Cluster GUI/SSH/kubeconfig access and stop/restart are not implemented by the
-current backend. The editor hides unsupported environment controls; templates
+Cluster GUI/SSH access and stop/restart are not implemented by the current
+backend. The editor hides unsupported environment controls; templates
 containing a cluster disable inactivity cleanup, public port exposure, and
 node selection, while preserving maximum-lifetime cleanup. Instance power
 controls are also unavailable for mixed VM/cluster templates. Supported VM
 connections remain available individually in mixed instances. Cluster
 instances can still be monitored and deleted.
+
+### Cluster API server access (`kubectl`)
+
+When the Instance Operator exposes the workload cluster API servers (see
+[`operators/README.md`](../operators/README.md#workload-cluster-api-server-access)),
+each Cluster environment reports `status.environments[].clusterAccess`
+(`endpoint`, `kubeconfigSecretName`, `ready`). **Connect** is enabled for a
+cluster environment only when `ready` is `true`, i.e., when the cluster is
+ready, the kubeconfig is available and the route is accepted by the Gateway.
+In instances with multiple environments, each cluster has its own entry in the
+Connect menu (desktop and mobile); VM/container connections are unchanged.
+
+Clicking Connect opens the **Cluster Connection** modal, which shows the
+environment name, the copyable API endpoint, a **Download kubeconfig** button
+and an example `kubectl --kubeconfig <file> get nodes` command. The kubeconfig
+Secret is read only when the download button is clicked, through the qlkube
+`readSecretByName` query, with `fetchPolicy: 'no-cache'`, so its content never
+enters the Apollo cache. The request uses the user token and is authorized by
+Kubernetes RBAC (the operator grants each owner `get` on that Secret only);
+errors such as `403 Forbidden` are shown inside the modal.
 
 ## Useful links
 

@@ -31,4 +31,22 @@ spec:
       allowedRoutes:
         {{- toYaml .Values.gatewayAPI.allowedRoutes | nindent 8 }}
       {{- end }}
+    {{- with .Values.global.clusterAccess }}
+    {{- if .baseDomain }}
+    # TLS passthrough towards the API servers of the workload clusters: TLS (including client
+    # certificates) is terminated by each API server, routed by SNI through per-environment TLSRoutes.
+    - name: {{ .listenerName | default "cluster-api-access" }}
+      protocol: TLS
+      port: {{ .port | default 9443 }}
+      hostname: {{ printf "*.%s" .baseDomain | quote }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: TLSRoute
+    {{- end }}
+    {{- end }}
 {{- end }}

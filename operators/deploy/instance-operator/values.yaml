@@ -17,6 +17,15 @@ configurations:
     tag: ""
     contentToolsImg: crownlabs/content-tools
   maxConcurrentReconciles: 1
+  # External access to the API server of the workload clusters (Cluster environments), through
+  # a TLS passthrough listener of the Gateway. Each field defaults to global.clusterAccess.
+  clusterAccess: {}
+    # Base DNS domain of the per-environment hostnames (a wildcard record "*.<baseDomain>" must
+    # resolve to the Gateway). Empty disables the exposure.
+    # baseDomain: k8s.crownlabs.example.com
+    # port: 9443
+    # listenerName: cluster-api-access
+    # gatewayRef: "crownlabs-production/crownlabs-main" # defaults to .Release.Namespace/global.gateway.name
 
   monitoring:
     prometheusURL: http://monitoring-kube-prometheus-prometheus.monitoring:9090
@@ -118,3 +127,8 @@ global:
   # Shared with the ImageList updater when deployed through the umbrella chart.
   clusterFlavorNamespace: crownlabs-clusterflavors
   gateway: {}
+  # Shared with the Gateway listener rendered by the umbrella chart.
+  clusterAccess:
+    baseDomain: ""
+    port: 9443
+    listenerName: cluster-api-access

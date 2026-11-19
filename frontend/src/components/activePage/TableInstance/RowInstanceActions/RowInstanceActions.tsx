@@ -4,12 +4,14 @@ import { Button } from 'antd';
 import {
   formatRelativeDate,
   type Instance,
+  type InstanceEnvironment,
   WorkspaceRole,
 } from '../../../../utils';
 import RowInstanceActionsPersistent from './RowInstanceActionsPersistent';
 import RowInstanceActionsDropdown from './RowInstanceActionsDropdown';
 import RowInstanceActionsExtended from './RowInstanceActionsExtended';
 import SSHModalContent from '../SSHModalContent/SSHModalContent';
+import ClusterAccessModalContent from '../ClusterAccessModalContent/ClusterAccessModalContent';
 import { hasClusterEnvironment } from '../../../../utils/cluster';
 import RowInstanceActionsDefault from './RowInstanceActionsDefault';
 import { PublicExposureModal } from '../PublicExposureModal/PublicExposureModal';
@@ -82,6 +84,8 @@ const RowInstanceActions: FC<IRowInstanceActionsProps> = ({
   const hasCluster = hasClusterEnvironment(instance.environments ?? [instance]);
 
   const [sshModal, setSshModal] = useState(false);
+  // Name of the Cluster environment whose access instructions are shown, if any.
+  const [clusterAccessEnvName, setClusterAccessEnvName] = useState<string>();
   const [showExposureModal, setShowExposureModal] = useState(false);
 
   const onEnablePublicExposure = useCallback(
@@ -89,6 +93,18 @@ const RowInstanceActions: FC<IRowInstanceActionsProps> = ({
     [],
   );
   const closeSshModal = useCallback(() => setSshModal(false), []);
+  const onClusterConnect = useCallback(
+    (env: InstanceEnvironment) => setClusterAccessEnvName(env.name),
+    [],
+  );
+  const closeClusterAccessModal = useCallback(
+    () => setClusterAccessEnvName(undefined),
+    [],
+  );
+  // Always show the latest status of the selected environment.
+  const clusterAccessEnv = instance.environments?.find(
+    env => env.name === clusterAccessEnvName,
+  );
   const closeExposureModal = useCallback(() => setShowExposureModal(false), []);
 
   const timeValue = useMemo(
@@ -104,11 +120,19 @@ const RowInstanceActions: FC<IRowInstanceActionsProps> = ({
     () => ({
       instance,
       setSshModal,
+      onClusterConnect,
       fileManager,
       extended,
       ...(allowPublic ? { onEnablePublicExposure } : {}),
     }),
-    [instance, fileManager, extended, allowPublic, onEnablePublicExposure],
+    [
+      instance,
+      fileManager,
+      extended,
+      allowPublic,
+      onEnablePublicExposure,
+      onClusterConnect,
+    ],
   );
 
   return (
@@ -161,6 +185,7 @@ const RowInstanceActions: FC<IRowInstanceActionsProps> = ({
           )}
           <RowInstanceActionsDefault
             setSshModal={setSshModal}
+            onClusterConnect={onClusterConnect}
             extended={extended}
             instance={instance}
             viewMode={viewMode}
@@ -185,6 +210,24 @@ const RowInstanceActions: FC<IRowInstanceActionsProps> = ({
           onClose={closeSshModal}
           environments={instance.environments}
         />
+      </Modal>
+      <Modal
+        title="Cluster Connection"
+        width={550}
+        open={!!clusterAccessEnv}
+        onOk={closeClusterAccessModal}
+        onCancel={closeClusterAccessModal}
+        footer={<Button onClick={closeClusterAccessModal}>Close</Button>}
+        centered
+        destroyOnHidden
+      >
+        {clusterAccessEnv && (
+          <ClusterAccessModalContent
+            instanceName={instance.name}
+            namespace={instance.tenantNamespace}
+            environment={clusterAccessEnv}
+          />
+        )}
       </Modal>
       {/* show exposure modal only when allowed or in dev */}
       {allowPublic && (

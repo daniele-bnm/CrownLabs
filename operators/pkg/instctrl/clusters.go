@@ -72,7 +72,14 @@ func (r *InstanceReconciler) EnforceClusterEnvironment(ctx context.Context) erro
 		return err
 	}
 
-	if _, err := r.enforceClusterAPIObject(ctx, forge.GVKKamajiControlPlane, names.ControlPlane, instance.Namespace, labels, forge.KamajiControlPlaneSpec(&flavor), nil); err != nil {
+	var accessHostname string
+	var certSANs []string
+	if r.ClusterAccess.Enabled() {
+		accessHostname = forge.ClusterAccessHostname(r.ClusterAccess.BaseDomain, instance.Namespace, instance.Name, environment.Name)
+		certSANs = []string{accessHostname}
+	}
+
+	if _, err := r.enforceClusterAPIObject(ctx, forge.GVKKamajiControlPlane, names.ControlPlane, instance.Namespace, labels, forge.KamajiControlPlaneSpec(&flavor, certSANs...), nil); err != nil {
 		return err
 	}
 
@@ -101,7 +108,7 @@ func (r *InstanceReconciler) EnforceClusterEnvironment(ctx context.Context) erro
 	}
 
 	instance.Status.Environments[envIndex].Phase = r.RetrievePhaseFromCluster(cluster)
-	return nil
+	return r.EnforceClusterAccess(ctx, names, accessHostname)
 }
 
 // enforceClusterAPIObject creates or updates a single unstructured Cluster API (or related provider) resource,

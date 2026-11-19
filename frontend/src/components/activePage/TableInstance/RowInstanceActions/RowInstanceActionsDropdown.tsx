@@ -19,7 +19,7 @@ import {
   ExclamationCircleOutlined,
   CameraOutlined,
 } from '@ant-design/icons';
-import type { Instance } from '../../../../utils';
+import type { Instance, InstanceEnvironment } from '../../../../utils';
 import {
   EnvironmentType,
   Phase2,
@@ -47,7 +47,9 @@ import {
 import { OwnedInstancesContext } from '../../../../contexts/OwnedInstancesContext';
 import { ThemeContext } from '../../../../contexts/ThemeContext';
 import {
+  canConnectToEnvironment,
   hasClusterEnvironment,
+  isClusterAccessReady,
   supportsEnvironmentSSH,
 } from '../../../../utils/cluster';
 
@@ -56,6 +58,7 @@ export interface IRowInstanceActionsDropdownProps {
   fileManager?: boolean;
   extended: boolean;
   setSshModal: React.Dispatch<SetStateAction<boolean>>;
+  onClusterConnect?: (env: InstanceEnvironment) => void;
   onEnablePublicExposure?: () => void;
 }
 
@@ -67,6 +70,7 @@ const RowInstanceActionsDropdown: FC<IRowInstanceActionsDropdownProps> = ({
     fileManager,
     extended,
     setSshModal,
+    onClusterConnect,
     onEnablePublicExposure,
   } = props;
 
@@ -251,12 +255,7 @@ const RowInstanceActionsDropdown: FC<IRowInstanceActionsDropdownProps> = ({
   const fileManagerDisabled = status !== Phase2.Ready && isContainer;
 
   const connectDisabled = hasCluster
-    ? !instance.environments?.some(
-        env =>
-          env.phase === Phase2.Ready &&
-          env.environmentType !== EnvironmentType.Cluster &&
-          (env.guiEnabled || supportsEnvironmentSSH(env)),
-      )
+    ? !instance.environments?.some(canConnectToEnvironment)
     : status !== Phase2.Ready || (isContainer && !gui);
 
   const defaultImageName = `image-of-${instance.name}`
@@ -421,14 +420,15 @@ const RowInstanceActionsDropdown: FC<IRowInstanceActionsDropdownProps> = ({
                 ? instance.environments?.map(env => ({
                     key: `connect-${env.name}`,
                     label:
-                      env.environmentType === EnvironmentType.Cluster
-                        ? `${env.name} (cluster connection unavailable)`
+                      env.environmentType === EnvironmentType.Cluster &&
+                      !isClusterAccessReady(env)
+                        ? `${env.name} (cluster access not ready)`
                         : env.name,
-                    disabled:
-                      env.phase !== Phase2.Ready ||
-                      env.environmentType === EnvironmentType.Cluster,
+                    disabled: !canConnectToEnvironment(env),
                     onClick: () => {
-                      if (env.guiEnabled) {
+                      if (env.environmentType === EnvironmentType.Cluster) {
+                        onClusterConnect?.(env);
+                      } else if (env.guiEnabled) {
                         window.open(
                           `${url?.replace(/\/$/, '')}/${env.name}/`,
                           '_blank',
@@ -500,7 +500,7 @@ const RowInstanceActionsDropdown: FC<IRowInstanceActionsDropdownProps> = ({
               disabled: sshDisabled,
               label:
                 isCluster && !sshEnvironments?.length
-                  ? 'Cluster connection (not available yet)'
+                  ? 'SSH (not available for clusters)'
                   : 'SSH',
               onClick: () => setSshModal(true),
               className: `flex items-center ${extended ? 'xl:hidden' : ''} ${sshDisabled ? 'pointer-events-none' : ''}`,

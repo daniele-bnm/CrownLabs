@@ -177,6 +177,45 @@ export type Cluster = {
   workersCount: Scalars['Int']['output'];
 };
 
+/**
+ * The status of the external access to the API server of the workload cluster.
+ * It is set only for Cluster environments, when the external access is enabled.
+ */
+export type ClusterAccess = {
+  __typename?: 'ClusterAccess';
+  /** The external endpoint (https://<host>:<port>) of the workload cluster API server. */
+  endpoint?: Maybe<Scalars['String']['output']>;
+  /**
+   * The name of the Secret, in the Instance namespace, containing the kubeconfig
+   * to access the workload cluster through the external endpoint (key "kubeconfig").
+   */
+  kubeconfigSecretName?: Maybe<Scalars['String']['output']>;
+  /**
+   * Whether the external access is ready, i.e., the cluster is ready, the kubeconfig
+   * is available and the route has been accepted by the Gateway with resolved references.
+   */
+  ready: Scalars['Boolean']['output'];
+};
+
+/**
+ * The status of the external access to the API server of the workload cluster.
+ * It is set only for Cluster environments, when the external access is enabled.
+ */
+export type ClusterAccessInput = {
+  /** The external endpoint (https://<host>:<port>) of the workload cluster API server. */
+  endpoint?: InputMaybe<Scalars['String']['input']>;
+  /**
+   * The name of the Secret, in the Instance namespace, containing the kubeconfig
+   * to access the workload cluster through the external endpoint (key "kubeconfig").
+   */
+  kubeconfigSecretName?: InputMaybe<Scalars['String']['input']>;
+  /**
+   * Whether the external access is ready, i.e., the cluster is ready, the kubeconfig
+   * is available and the route has been accepted by the Gateway with resolved references.
+   */
+  ready: Scalars['Boolean']['input'];
+};
+
 /** The specification of the cluster to be created when instantiating the environment. */
 export type ClusterInput = {
   /** The number of nodes in the cluster. */
@@ -505,6 +544,11 @@ export type EnvironmentsListItem = {
   /** Timestamps of the Instance automation phases (check, termination and submission). */
   automation?: Maybe<Automation>;
   /**
+   * The status of the external access to the API server of the workload cluster.
+   * It is set only for Cluster environments, when the external access is enabled.
+   */
+  clusterAccess?: Maybe<ClusterAccess>;
+  /**
    * Whether the Gateway or any other entity has accepted the exposition of the Instance to the outside world.
    * This is required for the Instance to be exposed to the outside world.
    * If not set, the Instance will not be exposed to the outside world.
@@ -539,6 +583,11 @@ export type EnvironmentsListItem = {
 export type EnvironmentsListItemInput = {
   /** Timestamps of the Instance automation phases (check, termination and submission). */
   automation?: InputMaybe<AutomationInput>;
+  /**
+   * The status of the external access to the API server of the workload cluster.
+   * It is set only for Cluster environments, when the external access is enabled.
+   */
+  clusterAccess?: InputMaybe<ClusterAccessInput>;
   /**
    * Whether the Gateway or any other entity has accepted the exposition of the Instance to the outside world.
    * This is required for the Instance to be exposed to the outside world.
@@ -2982,6 +3031,11 @@ export type Query = {
    * Equivalent to GET /apis/crownlabs.polito.it/v1alpha2/tenants/{name}/status
    */
   readCrownlabsPolitoItV1alpha2TenantStatus?: Maybe<ItPolitoCrownlabsV1alpha2Tenant>;
+  /**
+   * Reads a single Secret by name. The request is performed with the token of the
+   * requesting user, hence it is authorized by the Kubernetes RBAC only.
+   */
+  readSecretByName?: Maybe<SecretByName>;
 };
 
 
@@ -3311,6 +3365,12 @@ export type QueryReadCrownlabsPolitoItV1alpha2TenantStatusArgs = {
   resourceVersion?: InputMaybe<Scalars['String']['input']>;
 };
 
+
+export type QueryReadSecretByNameArgs = {
+  name: Scalars['String']['input'];
+  namespace: Scalars['String']['input'];
+};
+
 /** The amount of resources associated with this workspace, and inherited by enrolled tenants. */
 export type Quota = {
   __typename?: 'Quota';
@@ -3433,6 +3493,21 @@ export type SchedulerResourcesInput = {
   cpu: Scalars['JSON']['input'];
   /** The memory limit assigned to the component. */
   memory: Scalars['JSON']['input'];
+};
+
+export type SecretByName = {
+  __typename?: 'SecretByName';
+  /** The Secret data, base64-encoded as returned by the Kubernetes API. */
+  data: Array<SecretDataEntry>;
+  name: Scalars['String']['output'];
+  namespace: Scalars['String']['output'];
+  type?: Maybe<Scalars['String']['output']>;
+};
+
+export type SecretDataEntry = {
+  __typename?: 'SecretDataEntry';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
 };
 
 /** The reference of the Shared Volume this Mount Info is related to. */
@@ -4419,6 +4494,14 @@ export type AllTemplatesQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type AllTemplatesQuery = { __typename?: 'Query', allTemplates?: { __typename?: 'ItPolitoCrownlabsV1alpha2TemplateList', items: Array<{ __typename?: 'ItPolitoCrownlabsV1alpha2Template', metadata?: { __typename?: 'IoK8sApimachineryPkgApisMetaV1ObjectMeta', name?: string | null, namespace?: string | null } | null } | null> } | null };
 
+export type ClusterKubeconfigQueryVariables = Exact<{
+  namespace: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+}>;
+
+
+export type ClusterKubeconfigQuery = { __typename?: 'Query', secret?: { __typename?: 'SecretByName', name: string, namespace: string, data: Array<{ __typename?: 'SecretDataEntry', key: string, value: string }> } | null };
+
 export type ImageListQueryVariables = Exact<{
   name: Scalars['String']['input'];
 }>;
@@ -4431,7 +4514,7 @@ export type OwnedInstancesQueryVariables = Exact<{
 }>;
 
 
-export type OwnedInstancesQuery = { __typename?: 'Query', instanceList?: { __typename?: 'ItPolitoCrownlabsV1alpha2InstanceList', instances: Array<{ __typename?: 'ItPolitoCrownlabsV1alpha2Instance', metadata?: { __typename?: 'IoK8sApimachineryPkgApisMetaV1ObjectMeta', name?: string | null, namespace?: string | null, creationTimestamp?: string | null, labels?: any | null, annotations?: any | null } | null, status?: { __typename?: 'Status3', phase?: Phase2 | null, url?: string | null, nodeName?: string | null, nodeSelector?: any | null, publicExposure?: { __typename?: 'PublicExposure2', externalIP?: string | null, phase?: Phase3 | null, ports?: Array<{ __typename?: 'Ports2ListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, environments?: Array<{ __typename?: 'EnvironmentsListItem', name: string, phase?: Phase | null, ip?: string | null, initialReadyTime?: string | null } | null> | null } | null, spec?: { __typename?: 'Spec4', running?: boolean | null, prettyName?: string | null, publicExposure?: { __typename?: 'PublicExposure', ports?: Array<{ __typename?: 'PortsListItem', name: string, port: number, targetPort: number, protocol?: Protocol | null } | null> | null } | null, tenantCrownlabsPolitoItTenantRef: { __typename?: 'TenantCrownlabsPolitoItTenantRef', name: string }, templateCrownlabsPolitoItTemplateRef: { __typename?: 'TemplateCrownlabsPolitoItTemplateRef', name: string, namespace?: string | null, templateWrapper?: { __typename?: 'TemplateWrapper', itPolitoCrownlabsV1alpha2Template?: { __typename?: 'ItPolitoCrownlabsV1alpha2Template', spec?: { __typename?: 'Spec7', prettyName: string, description: string, allowPublicExposure?: boolean | null, cleanup: { __typename?: 'Cleanup', deleteAfterCreation: string, stopAfterInactivity: string, deleteAfterInactivity: string }, environmentList: Array<{ __typename?: 'EnvironmentListListItem', name: string, environmentType: EnvironmentType, image: string, guiEnabled?: boolean | null, persistent?: boolean | null, mountMyDriveVolume: boolean, disableControls?: boolean | null, rewriteURL?: boolean | null, storageClassName?: string | null, cluster?: { __typename?: 'Cluster', workersCount: number } | null, containerStartupOptions?: { __typename?: 'ContainerStartupOptions', sourceArchiveURL?: string | null, contentPath?: string | null, startupArgs?: Array<string | null> | null, enforceWorkdir?: boolean | null } | null, resources: { __typename?: 'Resources', cpu: any, disk?: any | null, memory: any, reservedCPUPercentage: number, otherResources?: any | null }, sharedVolumeMounts?: Array<{ __typename?: 'SharedVolumeMountsListItem', mountPath: string, readOnly: boolean, sharedVolume: { __typename?: 'SharedVolume', name: string, namespace?: string | null } } | null> | null } | null> } | null } | null } | null } } | null } | null> } | null };
+export type OwnedInstancesQuery = { __typename?: 'Query', instanceList?: { __typename?: 'ItPolitoCrownlabsV1alpha2InstanceList', instances: Array<{ __typename?: 'ItPolitoCrownlabsV1alpha2Instance', metadata?: { __typename?: 'IoK8sApimachineryPkgApisMetaV1ObjectMeta', name?: string | null, namespace?: string | null, creationTimestamp?: string | null, labels?: any | null, annotations?: any | null } | null, status?: { __typename?: 'Status3', phase?: Phase2 | null, url?: string | null, nodeName?: string | null, nodeSelector?: any | null, publicExposure?: { __typename?: 'PublicExposure2', externalIP?: string | null, phase?: Phase3 | null, ports?: Array<{ __typename?: 'Ports2ListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, environments?: Array<{ __typename?: 'EnvironmentsListItem', name: string, phase?: Phase | null, ip?: string | null, initialReadyTime?: string | null, clusterAccess?: { __typename?: 'ClusterAccess', endpoint?: string | null, kubeconfigSecretName?: string | null, ready: boolean } | null } | null> | null } | null, spec?: { __typename?: 'Spec4', running?: boolean | null, prettyName?: string | null, publicExposure?: { __typename?: 'PublicExposure', ports?: Array<{ __typename?: 'PortsListItem', name: string, port: number, targetPort: number, protocol?: Protocol | null } | null> | null } | null, tenantCrownlabsPolitoItTenantRef: { __typename?: 'TenantCrownlabsPolitoItTenantRef', name: string }, templateCrownlabsPolitoItTemplateRef: { __typename?: 'TemplateCrownlabsPolitoItTemplateRef', name: string, namespace?: string | null, templateWrapper?: { __typename?: 'TemplateWrapper', itPolitoCrownlabsV1alpha2Template?: { __typename?: 'ItPolitoCrownlabsV1alpha2Template', spec?: { __typename?: 'Spec7', prettyName: string, description: string, allowPublicExposure?: boolean | null, cleanup: { __typename?: 'Cleanup', deleteAfterCreation: string, stopAfterInactivity: string, deleteAfterInactivity: string }, environmentList: Array<{ __typename?: 'EnvironmentListListItem', name: string, environmentType: EnvironmentType, image: string, guiEnabled?: boolean | null, persistent?: boolean | null, mountMyDriveVolume: boolean, disableControls?: boolean | null, rewriteURL?: boolean | null, storageClassName?: string | null, cluster?: { __typename?: 'Cluster', workersCount: number } | null, containerStartupOptions?: { __typename?: 'ContainerStartupOptions', sourceArchiveURL?: string | null, contentPath?: string | null, startupArgs?: Array<string | null> | null, enforceWorkdir?: boolean | null } | null, resources: { __typename?: 'Resources', cpu: any, disk?: any | null, memory: any, reservedCPUPercentage: number, otherResources?: any | null }, sharedVolumeMounts?: Array<{ __typename?: 'SharedVolumeMountsListItem', mountPath: string, readOnly: boolean, sharedVolume: { __typename?: 'SharedVolume', name: string, namespace?: string | null } } | null> | null } | null> } | null } | null } | null } } | null } | null> } | null };
 
 export type InstancesLabelSelectorQueryVariables = Exact<{
   labels?: InputMaybe<Scalars['String']['input']>;
@@ -4508,7 +4591,7 @@ export type UpdatedOwnedInstancesSubscriptionVariables = Exact<{
 }>;
 
 
-export type UpdatedOwnedInstancesSubscription = { __typename?: 'Subscription', updateInstance?: { __typename?: 'ItPolitoCrownlabsV1alpha2InstanceUpdate', updateType?: UpdateType | null, instance?: { __typename?: 'ItPolitoCrownlabsV1alpha2Instance', metadata?: { __typename?: 'IoK8sApimachineryPkgApisMetaV1ObjectMeta', name?: string | null, namespace?: string | null, creationTimestamp?: string | null, labels?: any | null, annotations?: any | null } | null, status?: { __typename?: 'Status3', phase?: Phase2 | null, url?: string | null, nodeName?: string | null, nodeSelector?: any | null, publicExposure?: { __typename?: 'PublicExposure2', externalIP?: string | null, phase?: Phase3 | null, ports?: Array<{ __typename?: 'Ports2ListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, environments?: Array<{ __typename?: 'EnvironmentsListItem', name: string, phase?: Phase | null, ip?: string | null, initialReadyTime?: string | null } | null> | null } | null, spec?: { __typename?: 'Spec4', running?: boolean | null, prettyName?: string | null, publicExposure?: { __typename?: 'PublicExposure', ports?: Array<{ __typename?: 'PortsListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, tenantCrownlabsPolitoItTenantRef: { __typename?: 'TenantCrownlabsPolitoItTenantRef', name: string }, templateCrownlabsPolitoItTemplateRef: { __typename?: 'TemplateCrownlabsPolitoItTemplateRef', name: string, namespace?: string | null, templateWrapper?: { __typename?: 'TemplateWrapper', itPolitoCrownlabsV1alpha2Template?: { __typename?: 'ItPolitoCrownlabsV1alpha2Template', spec?: { __typename?: 'Spec7', prettyName: string, description: string, allowPublicExposure?: boolean | null, cleanup: { __typename?: 'Cleanup', deleteAfterCreation: string, stopAfterInactivity: string, deleteAfterInactivity: string }, environmentList: Array<{ __typename?: 'EnvironmentListListItem', name: string, environmentType: EnvironmentType, image: string, guiEnabled?: boolean | null, persistent?: boolean | null, mountMyDriveVolume: boolean, disableControls?: boolean | null, rewriteURL?: boolean | null, storageClassName?: string | null, cluster?: { __typename?: 'Cluster', workersCount: number } | null, containerStartupOptions?: { __typename?: 'ContainerStartupOptions', sourceArchiveURL?: string | null, contentPath?: string | null, startupArgs?: Array<string | null> | null, enforceWorkdir?: boolean | null } | null, resources: { __typename?: 'Resources', cpu: any, disk?: any | null, memory: any, reservedCPUPercentage: number, otherResources?: any | null }, sharedVolumeMounts?: Array<{ __typename?: 'SharedVolumeMountsListItem', mountPath: string, readOnly: boolean, sharedVolume: { __typename?: 'SharedVolume', name: string, namespace?: string | null } } | null> | null } | null> } | null } | null } | null } } | null } | null } | null };
+export type UpdatedOwnedInstancesSubscription = { __typename?: 'Subscription', updateInstance?: { __typename?: 'ItPolitoCrownlabsV1alpha2InstanceUpdate', updateType?: UpdateType | null, instance?: { __typename?: 'ItPolitoCrownlabsV1alpha2Instance', metadata?: { __typename?: 'IoK8sApimachineryPkgApisMetaV1ObjectMeta', name?: string | null, namespace?: string | null, creationTimestamp?: string | null, labels?: any | null, annotations?: any | null } | null, status?: { __typename?: 'Status3', phase?: Phase2 | null, url?: string | null, nodeName?: string | null, nodeSelector?: any | null, publicExposure?: { __typename?: 'PublicExposure2', externalIP?: string | null, phase?: Phase3 | null, ports?: Array<{ __typename?: 'Ports2ListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, environments?: Array<{ __typename?: 'EnvironmentsListItem', name: string, phase?: Phase | null, ip?: string | null, initialReadyTime?: string | null, clusterAccess?: { __typename?: 'ClusterAccess', endpoint?: string | null, kubeconfigSecretName?: string | null, ready: boolean } | null } | null> | null } | null, spec?: { __typename?: 'Spec4', running?: boolean | null, prettyName?: string | null, publicExposure?: { __typename?: 'PublicExposure', ports?: Array<{ __typename?: 'PortsListItem', name: string, port: number, protocol?: Protocol | null, targetPort: number } | null> | null } | null, tenantCrownlabsPolitoItTenantRef: { __typename?: 'TenantCrownlabsPolitoItTenantRef', name: string }, templateCrownlabsPolitoItTemplateRef: { __typename?: 'TemplateCrownlabsPolitoItTemplateRef', name: string, namespace?: string | null, templateWrapper?: { __typename?: 'TemplateWrapper', itPolitoCrownlabsV1alpha2Template?: { __typename?: 'ItPolitoCrownlabsV1alpha2Template', spec?: { __typename?: 'Spec7', prettyName: string, description: string, allowPublicExposure?: boolean | null, cleanup: { __typename?: 'Cleanup', deleteAfterCreation: string, stopAfterInactivity: string, deleteAfterInactivity: string }, environmentList: Array<{ __typename?: 'EnvironmentListListItem', name: string, environmentType: EnvironmentType, image: string, guiEnabled?: boolean | null, persistent?: boolean | null, mountMyDriveVolume: boolean, disableControls?: boolean | null, rewriteURL?: boolean | null, storageClassName?: string | null, cluster?: { __typename?: 'Cluster', workersCount: number } | null, containerStartupOptions?: { __typename?: 'ContainerStartupOptions', sourceArchiveURL?: string | null, contentPath?: string | null, startupArgs?: Array<string | null> | null, enforceWorkdir?: boolean | null } | null, resources: { __typename?: 'Resources', cpu: any, disk?: any | null, memory: any, reservedCPUPercentage: number, otherResources?: any | null }, sharedVolumeMounts?: Array<{ __typename?: 'SharedVolumeMountsListItem', mountPath: string, readOnly: boolean, sharedVolume: { __typename?: 'SharedVolume', name: string, namespace?: string | null } } | null> | null } | null> } | null } | null } | null } } | null } | null } | null };
 
 export type UpdatedInstancesLabelSelectorSubscriptionVariables = Exact<{
   labels?: InputMaybe<Scalars['String']['input']>;
@@ -5601,6 +5684,55 @@ export type AllTemplatesQueryHookResult = ReturnType<typeof useAllTemplatesQuery
 export type AllTemplatesLazyQueryHookResult = ReturnType<typeof useAllTemplatesLazyQuery>;
 export type AllTemplatesSuspenseQueryHookResult = ReturnType<typeof useAllTemplatesSuspenseQuery>;
 export type AllTemplatesQueryResult = Apollo.QueryResult<AllTemplatesQuery, AllTemplatesQueryVariables>;
+export const ClusterKubeconfigDocument = gql`
+    query clusterKubeconfig($namespace: String!, $name: String!) {
+  secret: readSecretByName(namespace: $namespace, name: $name) {
+    name
+    namespace
+    data {
+      key
+      value
+    }
+  }
+}
+    `;
+
+/**
+ * __useClusterKubeconfigQuery__
+ *
+ * To run a query within a React component, call `useClusterKubeconfigQuery` and pass it any options that fit your needs.
+ * When your component renders, `useClusterKubeconfigQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useClusterKubeconfigQuery({
+ *   variables: {
+ *      namespace: // value for 'namespace'
+ *      name: // value for 'name'
+ *   },
+ * });
+ */
+export function useClusterKubeconfigQuery(baseOptions: Apollo.QueryHookOptions<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables> & ({ variables: ClusterKubeconfigQueryVariables; skip?: boolean; } | { skip: boolean; }) ) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>(ClusterKubeconfigDocument, options);
+      }
+export function useClusterKubeconfigLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>(ClusterKubeconfigDocument, options);
+        }
+// @ts-ignore
+export function useClusterKubeconfigSuspenseQuery(baseOptions?: Apollo.SuspenseQueryHookOptions<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>): Apollo.UseSuspenseQueryResult<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>;
+export function useClusterKubeconfigSuspenseQuery(baseOptions?: Apollo.SkipToken | Apollo.SuspenseQueryHookOptions<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>): Apollo.UseSuspenseQueryResult<ClusterKubeconfigQuery | undefined, ClusterKubeconfigQueryVariables>;
+export function useClusterKubeconfigSuspenseQuery(baseOptions?: Apollo.SkipToken | Apollo.SuspenseQueryHookOptions<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>) {
+          const options = baseOptions === Apollo.skipToken ? baseOptions : {...defaultOptions, ...baseOptions}
+          return Apollo.useSuspenseQuery<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>(ClusterKubeconfigDocument, options);
+        }
+export type ClusterKubeconfigQueryHookResult = ReturnType<typeof useClusterKubeconfigQuery>;
+export type ClusterKubeconfigLazyQueryHookResult = ReturnType<typeof useClusterKubeconfigLazyQuery>;
+export type ClusterKubeconfigSuspenseQueryHookResult = ReturnType<typeof useClusterKubeconfigSuspenseQuery>;
+export type ClusterKubeconfigQueryResult = Apollo.QueryResult<ClusterKubeconfigQuery, ClusterKubeconfigQueryVariables>;
 export const ImageListDocument = gql`
     query imageList($name: String!) {
   imageList: itPolitoCrownlabsV1alpha1ImageList(name: $name) {
@@ -5691,6 +5823,11 @@ export const OwnedInstancesDocument = gql`
           phase
           ip
           initialReadyTime
+          clusterAccess {
+            endpoint
+            kubeconfigSecretName
+            ready
+          }
         }
       }
       spec {
@@ -6457,6 +6594,11 @@ export const UpdatedOwnedInstancesDocument = gql`
           phase
           ip
           initialReadyTime
+          clusterAccess {
+            endpoint
+            kubeconfigSecretName
+            ready
+          }
         }
       }
       spec {

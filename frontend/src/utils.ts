@@ -62,7 +62,15 @@ export type InstanceEnvironment = {
   persistent?: boolean;
   environmentType?: EnvironmentType;
   cluster?: { workersCount: number };
+  /** External access to the workload cluster API server (Cluster environments only). */
+  clusterAccess?: ClusterAccess;
   quota: InstanceResources;
+};
+
+export type ClusterAccess = {
+  endpoint?: string;
+  kubeconfigSecretName?: string;
+  ready: boolean;
 };
 
 export type Template = {

@@ -42,8 +42,13 @@ rules:
   verbs: ["get","list","watch","create","patch","update","delete"]
 
 - apiGroups: ["gateway.networking.k8s.io"]
-  resources: ["httproutes"]
+  resources: ["httproutes", "tlsroutes"]
   verbs: ["get","list","watch","create","patch","update","delete"]
+
+# Role and RoleBinding allowing the owner of a Cluster environment to get exclusively its kubeconfig Secret.
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get","list","watch","create","patch","update"]
 
 - apiGroups: ["networking.k8s.io"]
   resources: ["networkpolicies"]
@@ -68,6 +73,11 @@ rules:
 - apiGroups: ["controlplane.cluster.x-k8s.io"]
   resources: ["kamajicontrolplanes"]
   verbs: ["get","list","watch","create","patch","update"]
+
+# TenantControlPlanes are read to retrieve the Service of the workload cluster API server.
+- apiGroups: ["kamaji.clastix.io"]
+  resources: ["tenantcontrolplanes"]
+  verbs: ["get","list","watch"]
 
 - apiGroups: ["infrastructure.cluster.x-k8s.io"]
   resources: ["kubevirtclusters", "kubevirtmachinetemplates"]

@@ -105,6 +105,7 @@ This applies:
 - `ClusterIssuer selfsigned` and `Certificate crownlabs-tls`: the wildcard certificate (`*.crownlabs.local`), issued by cert-manager and stored in the `crownlabs-tls` Secret.
 - `GatewayClass envoy-gateway` and `Gateway crownlabs` (in the `default` namespace): one HTTPS listener on port 443, which terminates TLS with the certificate above, and one HTTP listener on port 80, used only for redirects.
 - `HTTPRoute http-to-https-redirect`: any plain HTTP request to `*.crownlabs.local` gets a 301 redirect to HTTPS.
+- A third listener, `cluster-api-access` (TLS **passthrough** on port 9443, hostname `*.k8s.crownlabs.local`, routes from all namespaces), used to reach the API servers of the workload clusters. See step 6.
 
 Envoy Gateway automatically creates the actual `LoadBalancer` `Service` that backs this `Gateway`, under the `envoy-gateway-system` namespace, with an auto-generated name.
 To find it:
@@ -172,6 +173,63 @@ Replace `<gateway-service-name>` with the Service name you found in step 3.
 From here on, **append `:8443` to every hostname in this guide when you use WSL2** (for example, `https://keycloak.crownlabs.local:8443`).
 This is the same reasoning as the old `:18543` bridge: if you try to reuse port 443 itself, kube-proxy's own `iptables` rules for that port hijack the connection, and it times out.
 
+## 6. Workload cluster API access (TLS passthrough on 9443)
+
+The `cluster-api-access` listener exposes the API servers of the workload clusters created by Cluster environments (Cluster API + Kamaji + KubeVirt), so that a tenant can use `kubectl` from their own computer.
+TLS is not terminated by the Gateway: Envoy only reads the SNI to pick the `TLSRoute`, and the API server receives the original handshake, including client certificates.
+The instance operator creates one `TLSRoute` per Cluster environment in the tenant namespace, attached to this listener (see [`../../operators/README.md`](../../operators/README.md#workload-cluster-api-server-access)).
+
+> Applying the manifests of step 3 again **modifies the live `Gateway crownlabs`** (a new listener, and a new port 9443 on its `LoadBalancer` Service). Existing listeners and routes are not affected.
+
+Check that the listener is programmed:
+
+```bash
+kubectl get gateway crownlabs -n default -o jsonpath='{range .status.listeners[*]}{.name}{"\t"}{.conditions[?(@.type=="Programmed")].status}{"\n"}{end}'
+# Expected: cluster-api-access  True
+```
+
+Run the instance operator with the matching configuration:
+
+```bash
+cd operators
+go run cmd/instance-operator/main.go \
+  --namespace-whitelist=crownlabs.polito.it/operator-selector=local \
+  --cluster-access-base-domain=k8s.crownlabs.local \
+  --cluster-access-port=9443 \
+  --cluster-access-listener-name=cluster-api-access \
+  --cluster-access-gateway=default/crownlabs
+```
+
+### DNS on the local network
+
+Each Cluster environment gets its own hostname, for example `my-instance-cluster-3f9c2a1b7d4e.k8s.crownlabs.local`: read it from `status.environments[].clusterAccess.endpoint` of the `Instance`.
+The operator never creates DNS records: every hostname below `k8s.crownlabs.local` must resolve to the address of the Gateway (the k3s node, `127.0.0.1` on the node itself).
+
+- **Single machine, a few clusters**: `/etc/hosts` does not support wildcards, so add one line per cluster hostname:
+  ```bash
+  echo "127.0.0.1 my-instance-cluster-3f9c2a1b7d4e.k8s.crownlabs.local" | sudo tee -a /etc/hosts
+  ```
+- **Wildcard on Linux** (NetworkManager with its `dnsmasq` plugin):
+  ```bash
+  printf '[main]\ndns=dnsmasq\n' | sudo tee /etc/NetworkManager/conf.d/00-use-dnsmasq.conf
+  echo "address=/k8s.crownlabs.local/127.0.0.1" | sudo tee /etc/NetworkManager/dnsmasq.d/crownlabs-k8s.conf
+  sudo systemctl reload NetworkManager
+  ```
+- **Other machines of the LAN**: configure the wildcard on the LAN DNS server (router, Pi-hole, `dnsmasq`) with the IP of the k3s host instead of `127.0.0.1`, e.g. `address=/k8s.crownlabs.local/192.168.1.10`, and make sure port 9443 of the k3s host is reachable (firewall).
+  On macOS, `/etc/resolver/k8s.crownlabs.local` containing `nameserver <LAN DNS IP>` delegates only that domain.
+  On Windows, without a LAN DNS, add one hosts entry per cluster as in step 4.
+
+Check the resolution and that TLS reaches the workload API server (its certificate, not the Gateway one, must be returned):
+
+```bash
+HOST=my-instance-cluster-3f9c2a1b7d4e.k8s.crownlabs.local
+getent hosts "$HOST"
+openssl s_client -connect "$HOST:9443" -servername "$HOST" </dev/null 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName
+kubectl --kubeconfig <downloaded-file> get nodes
+```
+
+> **On WSL2**, bridge the listener as in step 5, using a free local port (e.g., `kubectl port-forward -n envoy-gateway-system svc/<gateway-service-name> 19443:9443`), and run the instance operator with `--cluster-access-port=19443`: the port is only used to build the endpoint written in the kubeconfig, while the routes stay attached to the 9443 listener.
+
 ## Final checks
 
 ```bash
@@ -183,6 +241,7 @@ curl -sk -o /dev/null -w "%{http_code}\n" https://keycloak.crownlabs.local/realm
 Expected end state:
 - ✅ Traefik is disabled, the Gateway API CRDs are upgraded, and the Envoy Gateway controller is running.
 - ✅ `Gateway crownlabs` shows `PROGRAMMED = True`.
+- ✅ (Cluster environments only) the `cluster-api-access` listener is programmed and `*.k8s.crownlabs.local` resolves to the Gateway.
 - ✅ `/etc/hosts` has an entry for every hostname you use.
 - ✅ (WSL2 only) one `kubectl port-forward` bridge is open.
 

@@ -18,7 +18,7 @@ const getSSHTooltipText = (
   environmentType: EnvironmentType,
 ) => {
   if (environmentType === EnvironmentType.Cluster)
-    return 'Cluster connection credentials are not available through the dashboard yet.';
+    return 'Clusters do not support SSH: use Connect to access the cluster API server';
   if (environmentType === EnvironmentType.Standalone)
     return 'Standalone applications do not support SSH connection (yet!)';
   if (environmentType === EnvironmentType.Container)

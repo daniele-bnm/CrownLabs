@@ -72,6 +72,9 @@ func main() {
 	enableAuth := true
 	gatewayAPIMode := false
 	gatewayAPIRefsValues := ""
+	clusterAccessCfg := forge.ClusterAccessConfig{}
+	clusterAccessPort := 0
+	clusterAccessGatewayRef := ""
 
 	metricsAddr := flag.String("metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	enableLeaderElection := flag.Bool("enable-leader-election", false,
@@ -101,6 +104,14 @@ func main() {
 	flag.BoolVar(&enableAuth, "enable-auth", true, "Enable adding authentication on the exposed resources")
 	flag.BoolVar(&gatewayAPIMode, "gateway-api-mode", false, "Enable the use of Gateway API for public exposure instead of Ingress")
 	flag.StringVar(&gatewayAPIRefsValues, "gateway-api-refs-values", "", "Gateway minimal informations for route binding, in format namespace/name")
+
+	flag.StringVar(&clusterAccessCfg.BaseDomain, "cluster-access-base-domain", "",
+		"Base DNS domain of the hostnames exposing the API server of the workload clusters (e.g., k8s.crownlabs.example.com). Empty disables the exposure")
+	flag.IntVar(&clusterAccessPort, "cluster-access-port", forge.DefaultClusterAccessPort, "Port of the Gateway TLS passthrough listener exposing the workload cluster API servers")
+	flag.StringVar(&clusterAccessCfg.ListenerName, "cluster-access-listener-name", forge.DefaultClusterAccessListenerName,
+		"Name of the Gateway TLS passthrough listener exposing the workload cluster API servers")
+	flag.StringVar(&clusterAccessGatewayRef, "cluster-access-gateway", "",
+		"Gateway hosting the TLS passthrough listener exposing the workload cluster API servers, in format namespace/name")
 
 	restcfg.InitFlags(nil)
 	klog.InitFlags(nil)
@@ -194,6 +205,28 @@ func main() {
 		log.Info("Gateway parent provided but Gateway API mode is disabled")
 	}
 
+	if clusterAccessCfg.Enabled() {
+		if clusterAccessPort < 1 || clusterAccessPort > 65535 {
+			log.Error(fmt.Errorf("invalid port %d", clusterAccessPort), "invalid workload cluster access configuration")
+			os.Exit(1)
+		}
+		clusterAccessCfg.Port = int32(clusterAccessPort)
+		gwNs, gwName, err := forge.ParseNamespacedName(clusterAccessGatewayRef)
+		if err != nil {
+			log.Error(err, "invalid workload cluster access gateway, expected 'namespace/name'")
+			os.Exit(1)
+		}
+		clusterAccessCfg.GatewayNamespace, clusterAccessCfg.GatewayName = gwNs, gwName
+		if err := clusterAccessCfg.Validate(); err != nil {
+			log.Error(err, "invalid workload cluster access configuration")
+			os.Exit(1)
+		}
+		log.Info("workload cluster API server access enabled", "baseDomain", clusterAccessCfg.BaseDomain, "port", clusterAccessCfg.Port,
+			"listener", clusterAccessCfg.ListenerName, "gateway", clusterAccessGatewayRef)
+	} else {
+		log.Info("workload cluster API server access disabled (empty base domain)")
+	}
+
 	if err = (&instctrl.InstanceReconciler{
 		Client:                    mgr.GetClient(),
 		Scheme:                    mgr.GetScheme(),
@@ -205,6 +238,7 @@ func main() {
 		PublicExposureOpts:        publicExposureOpts,
 		MirrorPVCStorageClassName: mirrorStorageClass,
 		ClusterFlavorNamespace:    *clusterFlavorNamespace,
+		ClusterAccess:             clusterAccessCfg,
 	}).SetupWithManager(mgr, *maxConcurrentReconciles); err != nil {
 		log.Error(err, "unable to create controller", "controller", instanceCtrlName)
 		os.Exit(1)

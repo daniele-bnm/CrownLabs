@@ -17,6 +17,7 @@ package instctrl
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strconv"
 	"time"
@@ -24,10 +25,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/trace"
@@ -57,6 +60,7 @@ type InstanceReconciler struct {
 	PublicExposureOpts        forge.PublicExposureOpts
 	MirrorPVCStorageClassName string
 	ClusterFlavorNamespace    string
+	ClusterAccess             forge.ClusterAccessConfig
 
 	// This function, if configured, is deferred at the beginning of the Reconcile.
 	// Specifically, it is meant to be set to GinkgoRecover during the tests,
@@ -241,6 +245,9 @@ func (r *InstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		log.Info("instance metadata correctly configured")
 	}
 
+	// Collect the requeue requests of resources which are still being provisioned asynchronously.
+	ctx, requeue := withRequeueState(ctx)
+
 	// Iterate over and enforce the instance environments.
 	if err = r.enforceEnvironments(ctx); err != nil {
 		// If it's a quota error, requeue and return nil to prevent CreationLoopBackoff
@@ -265,7 +272,7 @@ func (r *InstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	tracer.Step("instance environments enforced")
 	log.Info("instance environments correctly enforced")
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeue.after}, nil
 }
 
 func (r *InstanceReconciler) enforceEnvironments(ctx context.Context) error {
@@ -420,6 +427,19 @@ func (r *InstanceReconciler) SetupWithManager(mgr ctrl.Manager, concurrency int)
 
 	if r.ExpositionConfig.GatewayAPIMode {
 		bld = bld.Owns(&gatewayv1.HTTPRoute{})
+	}
+
+	if r.ClusterAccess.Enabled() {
+		// TLSRoutes are watched to update the readiness once accepted by the Gateway, while Secrets are watched to keep
+		// the dedicated kubeconfig aligned with the one generated (and possibly rotated) by Cluster API.
+		if _, err := mgr.GetRESTMapper().RESTMapping(schema.GroupKind{Group: gatewayv1.GroupName, Kind: "TLSRoute"}, gatewayv1.GroupVersion.Version); err != nil {
+			return fmt.Errorf("the workload cluster API access requires the Gateway API TLSRoute %s CRD: %w", gatewayv1.GroupVersion.Version, err)
+		}
+		bld = bld.
+			Owns(&gatewayv1.TLSRoute{}).
+			Owns(&rbacv1.Role{}).
+			Owns(&rbacv1.RoleBinding{}).
+			Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.secretToInstance))
 	}
 
 	return bld.WithOptions(controller.Options{

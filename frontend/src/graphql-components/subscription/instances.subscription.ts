@@ -39,6 +39,11 @@ export default gql`
             phase
             ip
             initialReadyTime
+            clusterAccess {
+              endpoint
+              kubeconfigSecretName
+              ready
+            }
           }
         }
         spec {

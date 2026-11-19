@@ -76,6 +76,22 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+    # TLS passthrough towards the API servers of the workload clusters (Cluster environments).
+    # TLS is NOT terminated here: each API server receives the original handshake, including
+    # client certificates. The instance operator attaches one TLSRoute per Cluster environment,
+    # from the tenant namespaces (see the --cluster-access-* flags of the instance operator).
+    - name: cluster-api-access
+      protocol: TLS
+      port: 9443
+      hostname: "*.k8s.crownlabs.local"
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: TLSRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
