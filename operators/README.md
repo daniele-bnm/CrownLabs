@@ -73,7 +73,7 @@ All those resources are bound to the Instance life-cycle via the [OwnerRef prope
 
 Cluster environments use the official Go API types for Cluster API core and
 kubeadm bootstrap v1.13.7, the KubeVirt infrastructure provider v0.11.2, the
-Kamaji control plane provider v0.19.0, and the Helm add-on provider v0.6.4.
+Kamaji control plane provider v0.22.0, and the Helm add-on provider v0.6.4.
 
 #### Gateway API & Exposition Flags
 

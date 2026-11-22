@@ -17,7 +17,7 @@ package forge
 import (
 	"fmt"
 
-	kamajicpv1alpha1 "github.com/clastix/cluster-api-control-plane-provider-kamaji/api/v1alpha1"
+	kamajicpv1alpha2 "github.com/clastix/cluster-api-control-plane-provider-kamaji/api/v1alpha2"
 	kamajiv1alpha1 "github.com/clastix/kamaji/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,7 +62,7 @@ var (
 	// GVKKubevirtCluster is the GVK of the KubeVirt infrastructure provider Cluster resource.
 	GVKKubevirtCluster = infrav1alpha1.GroupVersion.WithKind("KubevirtCluster")
 	// GVKKamajiControlPlane is the GVK of the Kamaji control plane provider resource.
-	GVKKamajiControlPlane = kamajicpv1alpha1.GroupVersion.WithKind("KamajiControlPlane")
+	GVKKamajiControlPlane = kamajicpv1alpha2.GroupVersion.WithKind("KamajiControlPlane")
 	// GVKMachineDeployment is the GVK of the Cluster API MachineDeployment resource.
 	GVKMachineDeployment = clusterv1beta2.GroupVersion.WithKind("MachineDeployment")
 	// GVKKubevirtMachineTemplate is the GVK of the KubeVirt infrastructure provider machine template resource.
@@ -154,22 +154,22 @@ func componentResourcesSpec(res *clv1alpha2.ComponentResources) corev1.ResourceR
 
 // KamajiControlPlaneSpec returns the spec of the KamajiControlPlane resource, forged from the ClusterFlavor
 // referenced by the Cluster environment.
-func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor) *kamajicpv1alpha1.KamajiControlPlaneSpec {
+func KamajiControlPlaneSpec(flavor *clv1alpha2.ClusterFlavor) *kamajicpv1alpha2.KamajiControlPlaneSpec {
 	controlPlane := flavor.Spec.ControlPlane
-	return &kamajicpv1alpha1.KamajiControlPlaneSpec{
+	return &kamajicpv1alpha2.KamajiControlPlaneSpec{
 		Replicas: ptr.To(controlPlane.Replicas),
 		Version:  flavor.Spec.Version,
-		KamajiControlPlaneFields: kamajicpv1alpha1.KamajiControlPlaneFields{
+		KamajiControlPlaneFields: kamajicpv1alpha2.KamajiControlPlaneFields{
 			DataStoreName:   controlPlane.DataStoreName,
 			DataStoreSchema: ClusterKamajiDataStoreSchema,
-			Network: kamajicpv1alpha1.NetworkComponent{
+			Network: kamajicpv1alpha2.NetworkComponent{
 				ServiceType: "ClusterIP",
 			},
-			ApiServer:         kamajicpv1alpha1.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.APIServerResources)},
-			Scheduler:         kamajicpv1alpha1.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.SchedulerResources)},
-			ControllerManager: kamajicpv1alpha1.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.ControllerManagerResources)},
-			Addons: kamajicpv1alpha1.AddonsSpec{
-				CoreDNS: &kamajicpv1alpha1.CoreDNSAddonSpec{},
+			ApiServer:         kamajicpv1alpha2.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.APIServerResources)},
+			Scheduler:         kamajicpv1alpha2.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.SchedulerResources)},
+			ControllerManager: kamajicpv1alpha2.ControlPlaneComponent{Resources: componentResourcesSpec(&controlPlane.ControllerManagerResources)},
+			Addons: kamajicpv1alpha2.AddonsSpec{
+				CoreDNS: &kamajicpv1alpha2.CoreDNSAddonSpec{},
 				AddonsSpec: kamajiv1alpha1.AddonsSpec{
 					KubeProxy: &kamajiv1alpha1.AddonSpec{},
 					Konnectivity: &kamajiv1alpha1.KonnectivitySpec{

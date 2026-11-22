@@ -79,6 +79,9 @@ var _ = Describe("KubeVirt worker machine templates", func() {
 })
 
 func TestTypedClusterSpecs(t *testing.T) {
+	if got := forge.GVKKamajiControlPlane.String(); got != "controlplane.cluster.x-k8s.io/v1alpha2, Kind=KamajiControlPlane" {
+		t.Fatalf("unexpected KamajiControlPlane GVK: %s", got)
+	}
 	names := forge.ClusterResourceNames{
 		Cluster: "cluster", ControlPlane: "control-plane",
 		Infrastructure: "infrastructure", MachineDeployment: "workers",
