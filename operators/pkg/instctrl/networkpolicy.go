@@ -17,9 +17,14 @@ package instctrl
 
 import (
 	"context"
+	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -27,6 +32,46 @@ import (
 	"github.com/netgroup-polito/CrownLabs/operators/pkg/forge"
 	"github.com/netgroup-polito/CrownLabs/operators/pkg/utils"
 )
+
+func (r *InstanceReconciler) enforceClusterAPINetworkPolicy(ctx context.Context, names forge.ClusterResourceNames, labels map[string]string) error {
+	if len(r.ClusterAPIProviderNamespaces) == 0 {
+		return fmt.Errorf("Cluster API provider namespaces must not be empty")
+	}
+	for _, namespace := range r.ClusterAPIProviderNamespaces {
+		if errs := validation.IsDNS1123Label(namespace); len(errs) != 0 {
+			return fmt.Errorf("invalid Cluster API provider namespace %q: %v", namespace, errs)
+		}
+	}
+
+	instance := clctx.InstanceFrom(ctx)
+	netPol := netv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+		Name: names.Cluster + "-capi-api-access", Namespace: instance.Namespace,
+	}}
+	result, err := ctrlutil.CreateOrUpdate(ctx, r.Client, &netPol, func() error {
+		netPol.Labels = labels
+		netPol.Spec = netv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"kamaji.clastix.io/name": names.ControlPlane}},
+			PolicyTypes: []netv1.PolicyType{netv1.PolicyTypeIngress},
+			Ingress: []netv1.NetworkPolicyIngressRule{{
+				From: []netv1.NetworkPolicyPeer{{NamespaceSelector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{{
+						Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn,
+						Values: r.ClusterAPIProviderNamespaces,
+					}},
+				}}},
+				Ports: []netv1.NetworkPolicyPort{{
+					Protocol: ptr.To(corev1.ProtocolTCP), Port: ptr.To(intstr.FromInt32(6443)),
+				}},
+			}},
+		}
+		return ctrl.SetControllerReference(instance, &netPol, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("enforce Cluster API network policy %s: %w", netPol.Name, err)
+	}
+	ctrl.LoggerFrom(ctx).V(utils.FromResult(result)).Info("object enforced", "networkpolicy", netPol.Name, "result", result)
+	return nil
+}
 
 // enforcePublicExposureNetworkPolicyPresence enforces the presence of a NetworkPolicy to allow traffic
 // to the instance when public exposure is enabled and ready.

@@ -22,11 +22,15 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,6 +89,7 @@ func TestClusterFlavorNamespaceResolution(t *testing.T) {
 			recorder := record.NewFakeRecorder(1)
 			r := &InstanceReconciler{
 				Client: c, Scheme: scheme, EventsRecorder: recorder, ClusterFlavorNamespace: tt.configured,
+				ClusterAPIProviderNamespaces: []string{"capi-system"},
 			}
 			err := r.EnforceClusterEnvironment(ctx)
 			if tt.missing {
@@ -107,6 +112,89 @@ func TestClusterFlavorNamespaceResolution(t *testing.T) {
 				t.Fatalf("flavor lookups: got %v, want %v", lookups, want)
 			}
 		})
+	}
+}
+
+func TestClusterAPINetworkPolicy(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clv1alpha2.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := netv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	instance := &clv1alpha2.Instance{ObjectMeta: metav1.ObjectMeta{
+		Name: "instance", Namespace: "tenant", UID: types.UID("instance-uid"),
+	}}
+	names := forge.ClusterResourceNames{Cluster: "cluster", ControlPlane: "cluster-control-plane"}
+	existing := &netv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{
+		Name: "cluster-capi-api-access", Namespace: instance.Namespace,
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: clv1alpha2.GroupVersion.String(), Kind: "Instance", Name: instance.Name, UID: instance.UID,
+		}},
+	}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	r := &InstanceReconciler{Client: c, Scheme: scheme, ClusterAPIProviderNamespaces: []string{"capi-system", "helm-addon-system"}}
+	ctx, _ := clctx.InstanceInto(context.Background(), instance)
+	labels := map[string]string{"crownlabs.polito.it/instance": instance.Name}
+	if err := r.enforceClusterAPINetworkPolicy(ctx, names, labels); err != nil {
+		t.Fatal(err)
+	}
+
+	var policy netv1.NetworkPolicy
+	if err := c.Get(ctx, client.ObjectKeyFromObject(existing), &policy); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(policy.Spec.PodSelector.MatchLabels, map[string]string{"kamaji.clastix.io/name": names.ControlPlane}) {
+		t.Fatalf("unexpected pod selector: %#v", policy.Spec.PodSelector)
+	}
+	if len(policy.Spec.Ingress) != 1 || len(policy.Spec.Ingress[0].From) != 1 || len(policy.Spec.Ingress[0].Ports) != 1 {
+		t.Fatalf("unexpected ingress rules: %#v", policy.Spec.Ingress)
+	}
+	peer := policy.Spec.Ingress[0].From[0]
+	wantSelector := &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{
+		Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn,
+		Values: []string{"capi-system", "helm-addon-system"},
+	}}}
+	if peer.PodSelector != nil || peer.IPBlock != nil || !reflect.DeepEqual(peer.NamespaceSelector, wantSelector) {
+		t.Fatalf("unexpected allowed sources: %#v", peer)
+	}
+	port := policy.Spec.Ingress[0].Ports[0]
+	if port.Protocol == nil || *port.Protocol != corev1.ProtocolTCP || port.Port == nil || *port.Port != intstr.FromInt32(6443) || port.EndPort != nil {
+		t.Fatalf("unexpected allowed port: %#v", port)
+	}
+	if owner := metav1.GetControllerOf(&policy); owner == nil || owner.UID != instance.UID {
+		t.Fatalf("instance does not own policy: %#v", policy.OwnerReferences)
+	}
+
+	r.ClusterAPIProviderNamespaces = []string{"custom-capi"}
+	if err := r.enforceClusterAPINetworkPolicy(ctx, names, labels); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(existing), &policy); err != nil {
+		t.Fatal(err)
+	}
+	if got := policy.Spec.Ingress[0].From[0].NamespaceSelector.MatchExpressions[0].Values; !reflect.DeepEqual(got, []string{"custom-capi"}) {
+		t.Fatalf("policy did not update allowed namespaces: %v", got)
+	}
+
+	newNames := forge.ClusterResourceNames{Cluster: "another-cluster", ControlPlane: "another-control-plane"}
+	if err := r.enforceClusterAPINetworkPolicy(ctx, newNames, labels); err != nil {
+		t.Fatal(err)
+	}
+	var created netv1.NetworkPolicy
+	if err := c.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: "another-cluster-capi-api-access"}, &created); err != nil {
+		t.Fatal(err)
+	}
+	if got := created.Spec.PodSelector.MatchLabels["kamaji.clastix.io/name"]; got != newNames.ControlPlane {
+		t.Fatalf("new policy selects control plane %q, want %q", got, newNames.ControlPlane)
+	}
+
+	for _, namespaces := range [][]string{nil, {""}, {"Invalid_Name"}} {
+		r.ClusterAPIProviderNamespaces = namespaces
+		if err := r.enforceClusterAPINetworkPolicy(ctx, names, labels); err == nil {
+			t.Fatalf("expected error for invalid namespaces %v", namespaces)
+		}
 	}
 }
 

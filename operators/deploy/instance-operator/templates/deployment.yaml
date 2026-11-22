@@ -44,6 +44,7 @@ spec:
             - '--container-env-content-tools-img={{ .Values.configurations.containerEnvironmentOptions.contentToolsImg }}'
             - '--max-concurrent-reconciles={{ .Values.configurations.maxConcurrentReconciles }}'
             - '--cluster-flavor-namespace={{ required "global.clusterFlavorNamespace is required" .Values.global.clusterFlavorNamespace }}'
+            - '--cluster-api-provider-namespaces={{ .Values.configurations.clusterAPIProviderNamespaces | join "," }}'
             - '--webbastion-master-key-path=/webbastion-key/{{ .Values.webssh.masterKey.keyName }}.pub'
             - '--public-exposure-ip-pool={{ .Values.configurations.publicExposure.ipPool | join "," }}'
             - '--public-exposure-common-annotations={{ .Values.configurations.publicExposure.commonAnnotations | join "," }}'

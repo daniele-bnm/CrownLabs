@@ -74,6 +74,14 @@ All those resources are bound to the Instance life-cycle via the [OwnerRef prope
 Cluster environments use the official Go API types for Cluster API core and
 kubeadm bootstrap v1.13.7, the KubeVirt infrastructure provider v0.11.2, the
 Kamaji control plane provider v0.22.0, and the Helm add-on provider v0.6.4.
+The Instance Operator creates an instance-owned NetworkPolicy for each nested
+control plane. It allows TCP 6443 from the namespaces configured by
+`--cluster-api-provider-namespaces` (comma-separated), defaulting to `capi-system`,
+`kubeadm-bootstrap-system`, `kubevirt-infrastructure-system`, and `helm-addon-system`.
+For Helm, set `configurations.clusterAPIProviderNamespaces` to the corresponding
+list when using different provider namespaces. An empty or invalid list is rejected.
+This grants network access only to that control plane; Kubernetes authentication
+and authorization still apply.
 
 #### Gateway API & Exposition Flags
 

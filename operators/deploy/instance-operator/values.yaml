@@ -17,6 +17,12 @@ configurations:
     tag: ""
     contentToolsImg: crownlabs/content-tools
   maxConcurrentReconciles: 1
+  # Namespaces allowed to reach each nested cluster control plane on TCP 6443.
+  clusterAPIProviderNamespaces:
+    - capi-system
+    - kubeadm-bootstrap-system
+    - kubevirt-infrastructure-system
+    - helm-addon-system
 
   monitoring:
     prometheusURL: http://monitoring-kube-prometheus-prometheus.monitoring:9090

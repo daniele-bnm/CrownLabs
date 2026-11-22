@@ -49,6 +49,8 @@ var (
 	rscheme = runtime.NewScheme()
 )
 
+const defaultClusterAPIProviderNamespaces = "capi-system,kubeadm-bootstrap-system,kubevirt-infrastructure-system,helm-addon-system"
+
 func init() {
 	utilruntime.Must(scheme.AddToScheme(rscheme))
 
@@ -78,6 +80,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	maxConcurrentReconciles := flag.Int("max-concurrent-reconciles", 1, "The maximum number of concurrent Reconciles which can be run for the Instance controller")
 	clusterFlavorNamespace := flag.String("cluster-flavor-namespace", forge.DefaultClusterFlavorNamespace, "Namespace hosting the shared ClusterFlavor resources")
+	clusterAPIProviderNamespaces := flag.String("cluster-api-provider-namespaces", defaultClusterAPIProviderNamespaces, "Comma-separated namespaces allowed to access nested cluster API servers")
 
 	namespaceWhiteList := flag.String("namespace-whitelist", "production=true", "The whitelist of the namespaces on "+
 		"which the controller will work. Different labels (key=value) can be specified, by separating them with a &"+
@@ -115,6 +118,12 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("using centralized cluster flavors", "namespace", *clusterFlavorNamespace)
+
+	providerNamespaces, err := parseClusterAPIProviderNamespaces(*clusterAPIProviderNamespaces)
+	if err != nil {
+		log.Error(err, "invalid Cluster API provider namespaces")
+		os.Exit(1)
+	}
 
 	whiteListMap := parseMap(*namespaceWhiteList)
 	log.Info("restricting reconciled namespaces", "labels", *namespaceWhiteList)
@@ -195,16 +204,17 @@ func main() {
 	}
 
 	if err = (&instctrl.InstanceReconciler{
-		Client:                    mgr.GetClient(),
-		Scheme:                    mgr.GetScheme(),
-		EventsRecorder:            mgr.GetEventRecorderFor(instanceCtrlName),
-		NamespaceWhitelist:        nsWhitelist,
-		ExpositionConfig:          expositionCfg,
-		ContainerEnvOpts:          containerEnvOpts,
-		WebSSHMasterPublicKey:     pubKeyBytes,
-		PublicExposureOpts:        publicExposureOpts,
-		MirrorPVCStorageClassName: mirrorStorageClass,
-		ClusterFlavorNamespace:    *clusterFlavorNamespace,
+		Client:                       mgr.GetClient(),
+		Scheme:                       mgr.GetScheme(),
+		EventsRecorder:               mgr.GetEventRecorderFor(instanceCtrlName),
+		NamespaceWhitelist:           nsWhitelist,
+		ExpositionConfig:             expositionCfg,
+		ContainerEnvOpts:             containerEnvOpts,
+		WebSSHMasterPublicKey:        pubKeyBytes,
+		PublicExposureOpts:           publicExposureOpts,
+		MirrorPVCStorageClassName:    mirrorStorageClass,
+		ClusterFlavorNamespace:       *clusterFlavorNamespace,
+		ClusterAPIProviderNamespaces: providerNamespaces,
 	}).SetupWithManager(mgr, *maxConcurrentReconciles); err != nil {
 		log.Error(err, "unable to create controller", "controller", instanceCtrlName)
 		os.Exit(1)
@@ -229,6 +239,18 @@ func main() {
 		log.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+}
+
+func parseClusterAPIProviderNamespaces(raw string) ([]string, error) {
+	namespaces := strings.Split(raw, ",")
+	for i, namespace := range namespaces {
+		namespace = strings.TrimSpace(namespace)
+		if errors := validation.IsDNS1123Label(namespace); len(errors) > 0 {
+			return nil, fmt.Errorf("invalid namespace %q: %s", namespace, strings.Join(errors, "; "))
+		}
+		namespaces[i] = namespace
+	}
+	return namespaces, nil
 }
 
 // This method parses a string to get a map. The different labels should divided by a &.

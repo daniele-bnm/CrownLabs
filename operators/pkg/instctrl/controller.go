@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,15 +49,16 @@ import (
 // InstanceReconciler reconciles an Instance object.
 type InstanceReconciler struct {
 	client.Client
-	Scheme                    *runtime.Scheme
-	EventsRecorder            record.EventRecorder
-	NamespaceWhitelist        metav1.LabelSelector
-	ExpositionConfig          forge.ExpositionConfig
-	ContainerEnvOpts          forge.ContainerEnvOpts
-	WebSSHMasterPublicKey     []byte
-	PublicExposureOpts        forge.PublicExposureOpts
-	MirrorPVCStorageClassName string
-	ClusterFlavorNamespace    string
+	Scheme                       *runtime.Scheme
+	EventsRecorder               record.EventRecorder
+	NamespaceWhitelist           metav1.LabelSelector
+	ExpositionConfig             forge.ExpositionConfig
+	ContainerEnvOpts             forge.ContainerEnvOpts
+	WebSSHMasterPublicKey        []byte
+	PublicExposureOpts           forge.PublicExposureOpts
+	MirrorPVCStorageClassName    string
+	ClusterFlavorNamespace       string
+	ClusterAPIProviderNamespaces []string
 
 	// This function, if configured, is deferred at the beginning of the Reconcile.
 	// Specifically, it is meant to be set to GinkgoRecover during the tests,
@@ -403,6 +405,7 @@ func (r *InstanceReconciler) SetupWithManager(mgr ctrl.Manager, concurrency int)
 		Owns(&appsv1.Deployment{}).
 		Owns(&virtv1.VirtualMachine{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
+		Owns(&netv1.NetworkPolicy{}).
 		// Services are watched to update the public exposure status once the LoadBalancer IP is assigned.
 		Owns(&corev1.Service{}).
 		// Here, we use Watches instead of Owns since we need to react also in case a VMI generated from a VM is updated,

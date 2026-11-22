@@ -63,6 +63,10 @@ func (r *InstanceReconciler) EnforceClusterEnvironment(ctx context.Context) erro
 	selectorLabels := forge.ClusterSelectorLabels(instance, environment)
 	labels := forge.EnvironmentObjectLabels(nil, instance, environment)
 
+	if err := r.enforceClusterAPINetworkPolicy(ctx, names, labels); err != nil {
+		return err
+	}
+
 	cluster, err := r.enforceClusterAPIObject(ctx, forge.GVKCluster, names.Cluster, instance.Namespace, labels, forge.ClusterSpec(names), nil)
 	if err != nil {
 		return err
